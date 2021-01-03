@@ -5,7 +5,7 @@ from certbot.plugins import common
 from typing import List
 import docker
 from docker.errors import APIError
-import OpenSSL.crypto
+import time
 
 @zope.interface.implementer(interfaces.IInstaller)
 @zope.interface.provider(interfaces.IPluginFactory)
@@ -15,13 +15,14 @@ class SwarmInstaller(common.Plugin):
     description = "Docker Swarm installer"
 
     LABEL_PREFIX="certbot"
-    SECRET_FORMAT="{domain}_{secret}_{sn}"
+    SECRET_FORMAT="{domain}_{secret}_v{version}"
 
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
         self.created_secrets = []
 
     def prepare(self) -> None:
+        # No additional preparation is necessary.
         pass
 
     def more_info(self) -> str:
@@ -41,28 +42,12 @@ class SwarmInstaller(common.Plugin):
         :return: The label as a string.
         :rtype: str
         """
+
         tmp = [SwarmInstaller.LABEL_PREFIX]
         tmp.extend(label)
         return ".".join(tmp)
 
-    @staticmethod
-    def get_cert_serial_number(cert_path: str) -> str:
-        """ Get x509 certificate Serial Number from a file.
-
-        :param cert_path str: The path to the certificate file.
-
-        :return str: The Serial Number as a string.
-        :rtype: str
-        """
-
-        with open(cert_path, "r") as cert_file:
-            cert = OpenSSL.crypto.load_certificate(
-                OpenSSL.crypto.FILETYPE_PEM,
-                cert_file
-            )
-            return cert.get_serial_number()
-
-    def secret_from_file(self, domain: str, secret: str, sn: str, filepath: str) -> None:
+    def secret_from_file(self, domain: str, secret: str, filepath: str) -> None:
         """ Create a Docker Swarm secret from a file.
 
         :param domain str: The domain the secret authenticates.
@@ -71,6 +56,7 @@ class SwarmInstaller(common.Plugin):
         :param filepath str: The file path of the secret.
         """
 
+
         labels = {}
         labels[SwarmInstaller.get_label(["managed"])] = "true"
         labels[SwarmInstaller.get_label(["domain"])] = domain
@@ -78,7 +64,7 @@ class SwarmInstaller(common.Plugin):
         name = SwarmInstaller.SECRET_FORMAT.format(
             domain=domain,
             secret=secret,
-            sn=sn
+            version=int(time.time())
         )
 
         with open(filepath, "r") as f:
@@ -99,14 +85,16 @@ class SwarmInstaller(common.Plugin):
 
         for s in self.docker_client.secrets.list():
             labels = s.attrs.get("Spec").get("Labels")
-            if labels.get(SwarmInstaller.get_label(["managed"]), False):
-                d = labels.get(SwarmInstaller.get_label(["domain"]), None)
-                if d not in ret:
-                    ret.append(d)
+            if labels.get(SwarmInstaller.get_label(["managed"]), None) != "true":
+                continue
+
+            d = labels.get(SwarmInstaller.get_label(["domain"]), None)
+            if d is not None and d not in ret:
+                ret.append(d)
 
         return ret
 
-    def deploy_cert(self, domain: str , cert_path: str, key_path: str, chain_path: str, fullchain_path: str) -> None:
+    def deploy_cert(self, domain: str, cert_path: str, key_path: str, chain_path: str, fullchain_path: str) -> None:
         """Create Docker Swarm secrets from certificates.
 
         :param str domain: Certificate domain.
@@ -116,11 +104,10 @@ class SwarmInstaller(common.Plugin):
         :param str fullchain_path: Path to the fullchain file.
         """
 
-        sn = SwarmInstaller.get_cert_serial_number(cert_path);
-        self.secret_from_file(domain, "cert", sn, cert_path)
-        self.secret_from_file(domain, "key", sn, key_path)
-        self.secret_from_file(domain, "chain", sn, chain_path)
-        self.secret_from_file(domain, "fullchain", sn, fullchain_path)
+        self.secret_from_file(domain, "cert", cert_path)
+        self.secret_from_file(domain, "key", key_path)
+        self.secret_from_file(domain, "chain", chain_path)
+        self.secret_from_file(domain, "fullchain", fullchain_path)
 
     def enhance(self, domain: str, enhancement: str, options=None) -> None:
         # No enchancements are possible with Docker Swarm secrets.
