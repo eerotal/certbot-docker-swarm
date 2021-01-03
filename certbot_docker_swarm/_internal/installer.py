@@ -17,7 +17,7 @@ class SwarmInstaller(common.Plugin):
     LABEL_PREFIX="certbot"
     SECRET_FORMAT="{domain}_{secret}_{sn}"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
         self.created_secrets = []
 
