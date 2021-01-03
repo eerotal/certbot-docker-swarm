@@ -42,7 +42,7 @@ class SwarmInstaller(common.Plugin):
         :rtype: str
         """
 
-        return ".".join(LABEL_PREFIX.extend(label))
+        return ".".join([SwarmInstaller.LABEL_PREFIX].extend(label))
 
     @staticmethod
     def get_cert_serial_number(cert_path: str) -> str:
