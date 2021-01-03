@@ -21,6 +21,17 @@ class SwarmInstaller(common.Plugin):
         self.docker_client = docker.from_env()
         self.created_secrets = []
 
+    def prepare(self) -> None:
+        pass
+
+    def more_info(self) -> str:
+        """Return a human-readable help string.
+
+        :return: A help string.
+        :rtype str:
+        """
+        return "Docker Swarm installer"
+
     @staticmethod
     def get_label(label: List[str]) -> str:
         """Get a fully qualified label string.
