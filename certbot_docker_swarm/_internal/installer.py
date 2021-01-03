@@ -21,7 +21,7 @@ class SwarmInstaller(common.Plugin):
 
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
-        self.created_secrets = []
+        self.created_secrets = {}
 
     def prepare(self) -> None:
         # No additional preparation is necessary.
@@ -63,7 +63,7 @@ class SwarmInstaller(common.Plugin):
         labels[SwarmInstaller.get_label(["managed"])] = "true"
         labels[SwarmInstaller.get_label(["domain"])] = domain
         labels[SwarmInstaller.get_label(["name"])] = name
-        labels[SwarmInstaller.get_label(["version"])] = version
+        labels[SwarmInstaller.get_label(["version"])] = str(version)
 
         name = SwarmInstaller.SECRET_FORMAT.format(
             domain=domain,
@@ -112,6 +112,7 @@ class SwarmInstaller(common.Plugin):
         :param str fullchain_path: Path to the fullchain file.
         """
 
+        print("Deploying certificates as Docker Secrets.")
         self.secret_from_file(domain, "cert", cert_path)
         self.secret_from_file(domain, "key", key_path)
         self.secret_from_file(domain, "chain", chain_path)
@@ -125,17 +126,17 @@ class SwarmInstaller(common.Plugin):
         # No enchancements are possible with Docker Swarm secrets.
         return []
 
-    def create_secret_ref(self, secret: Secret) -> SecretReference:
+    def create_secret_ref(self, secret_conf: dict) -> SecretReference:
         return SecretReference(
-            secret.id,
-            secret.name,
-            secret.get("File").get("Name"),
-            secret.get("File").get("UID"),
-            secret.get("File").get("GID"),
-            secret.get("File").get("Mode")
+            secret_conf.get("SecretID"),
+            secret_conf.get("SecretName"),
+            secret_conf.get("File").get("Name"),
+            secret_conf.get("File").get("UID"),
+            secret_conf.get("File").get("GID"),
+            secret_conf.get("File").get("Mode")
         )
 
-    def create_subst_secret_ref(self, domain: str, old: Secret) -> SecretReference:
+    def create_subst_secret_ref(self, domain: str, old_conf: dict) -> SecretReference:
         for s in self.created_secrets:
             labels = s.attrs.get("Spec").get("Labels")
 
@@ -145,44 +146,55 @@ class SwarmInstaller(common.Plugin):
             return SecretReference(
                 s.id,
                 s.name,
-                old.get("File").get("Name"),
-                old.get("File").get("UID"),
-                old.get("File").get("GID"),
-                old.get("File").get("Mode")
+                old_conf.get("File").get("Name"),
+                old_conf.get("File").get("UID"),
+                old_conf.get("File").get("GID"),
+                old_conf.get("File").get("Mode")
             )
 
         raise PluginError("No secret for domain: {}".format(domain))
 
     def save(self, title: str=None, temporary: bool=False) -> None:
+        if temporary:
+            return
+
         print("Rotating secrets in Docker Swarm services.")
 
         services = self.docker_client.services.list()
         for service in services:
-            print("Working in service {}".format(service.id))
+            print("Working in Swarm service {}".format(service.id))
 
+            dirty = False
             secret_refs = []
-            secret_conf = s.attrs.get("Spec").get("TaskTemplate").get("ContainerSpec").get("Secrets")
+            secret_conf = service.attrs.get("Spec").get("TaskTemplate").get("ContainerSpec").get("Secrets")
+
+            if secret_conf is None:
+                continue
 
             for tmp in secret_conf:
-                secret = self.docker_client.secrets.get(tmp.id)
+                secret = self.docker_client.secrets.get(tmp.get("SecretID"))
                 labels = secret.attrs.get("Spec").get("Labels")
 
                 if labels.get(SwarmInstaller.get_label(["managed"]), None) != "true":
                     # Add secret to updated service as-is.
-                    secret_refs.append(self.create_secret_ref(secret))
+                    secret_refs.append(self.create_secret_ref(tmp))
                 else:
                     # Substitute secret with a new one.
                     print("--> Queueing secret update for {}".format(secret.name))
+
                     domain = labels.get(SwarmInstaller.get_label(["domain"]))
                     secret_refs.append(
                         self.create_subst_secret_ref(
                             domain,
-                            secret
+                            tmp
                         )
                     )
 
-            print("--> Committing changes.")
-            service.update(secrets=secret_refs)
+                    dirty = True
+
+            if dirty:
+                print("--> Committing changes.")
+                service.update(secrets=secret_refs)
 
 
     def rollback_checkpoints(self, rollback=1) -> None:
