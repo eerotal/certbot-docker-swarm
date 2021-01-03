@@ -3,7 +3,7 @@ from certbot import interfaces
 from certbot.errors import PluginError
 from certbot.plugins import common
 from collections import Iterable
-from typing import Union
+from typing import List
 import docker
 from docker.errors import APIError
 import OpenSSL.crypto
@@ -23,10 +23,10 @@ class SwarmInstaller(common.Plugin):
         self.created_secrets = []
 
     @staticmethod
-    def get_label(label: Iterable[str]) -> str:
+    def get_label(label: List[str]) -> str:
         """Get a fully qualified label string.
 
-        :param Iterable[str] label: The label components as a list.
+        :param List[str] label: The label components as a list.
 
         :return: The label as a string.
         :rtype: str

@@ -20,12 +20,13 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     install_requires=[
-        "docker>=4.4.0",
-        "pyOpenSSL>=20.0.0"
+        "docker>=4.4",
+        "pyOpenSSL>=20.0",
+        "certbot>=1.10"
     ],
     entry_points={
         "certbot.plugins": [
-            'docker-swarm=certbot_docker_swarm._internal.installer:SwarmInstaller'
+            'docker-swarm = certbot_docker_swarm._internal.installer:SwarmInstaller'
         ]
     }
 )
