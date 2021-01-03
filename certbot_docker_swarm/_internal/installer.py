@@ -41,8 +41,9 @@ class SwarmInstaller(common.Plugin):
         :return: The label as a string.
         :rtype: str
         """
-
-        return ".".join([SwarmInstaller.LABEL_PREFIX].extend(label))
+        tmp = [SwarmInstaller.LABEL_PREFIX]
+        tmp.extend(label)
+        return ".".join(tmp)
 
     @staticmethod
     def get_cert_serial_number(cert_path: str) -> str:
@@ -71,7 +72,7 @@ class SwarmInstaller(common.Plugin):
         """
 
         labels = {}
-        labels[SwarmInstaller.get_label(["managed"])] = True
+        labels[SwarmInstaller.get_label(["managed"])] = "true"
         labels[SwarmInstaller.get_label(["domain"])] = domain
 
         name = SwarmInstaller.SECRET_FORMAT.format(
@@ -100,7 +101,7 @@ class SwarmInstaller(common.Plugin):
             labels = s.attrs.get("Spec").get("Labels")
             if labels.get(SwarmInstaller.get_label(["managed"]), False):
                 d = labels.get(SwarmInstaller.get_label(["domain"]), None)
-                if d:
+                if d not in ret:
                     ret.append(d)
 
         return ret
