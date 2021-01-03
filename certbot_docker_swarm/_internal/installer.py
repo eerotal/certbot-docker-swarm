@@ -2,7 +2,6 @@ import zope.interface
 from certbot import interfaces
 from certbot.errors import PluginError
 from certbot.plugins import common
-from collections import Iterable
 from typing import List
 import docker
 from docker.errors import APIError
@@ -78,10 +77,10 @@ class SwarmInstaller(common.Plugin):
             ).id
             self.created_secrets.append(secret_id)
 
-    def get_all_names(self) -> Iterable[str]:
+    def get_all_names(self) -> List[str]:
         """Get all names that have at least one existing certificate secret.
 
-        :rtype: `collections.Iterable` of `str`
+        :rtype: List[str]
         """
 
         ret = []
@@ -115,7 +114,7 @@ class SwarmInstaller(common.Plugin):
         # No enchancements are possible with Docker Swarm secrets.
         raise PluginError("Docker Swarm installer doesn't support enhancements.")
 
-    def supported_enhancements(self) -> Iterable[str]:
+    def supported_enhancements(self) -> List[str]:
         # No enchancements are possible with Docker Swarm secrets.
         return []
 
