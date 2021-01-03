@@ -1,0 +1,1 @@
+"""Certbot Docker Swarm plugin."""
