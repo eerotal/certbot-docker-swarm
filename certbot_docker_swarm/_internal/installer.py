@@ -97,7 +97,7 @@ class SwarmInstaller(common.Plugin):
         ret = []
 
         for s in self.docker_client.secrets.list():
-            labels = s.get("Spec").get("Labels")
+            labels = s.attrs.get("Spec").get("Labels")
             if labels.get(SwarmInstaller.get_label(["managed"]), False):
                 d = labels.get(SwarmInstaller.get_label(["domain"]), None)
                 if d:
