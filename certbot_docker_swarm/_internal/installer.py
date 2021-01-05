@@ -126,7 +126,7 @@ class SwarmInstaller(common.Plugin):
         self.secret_from_file(domain, "fullchain", fullchain_path)
 
         self.update_services()
-        self.rm_oldest_secrets()
+        self.rm_oldest_secrets(domain)
 
     def get_secrets_by_domain_and_name(self, domain: str, name: str) -> List[Secret]:
         """
@@ -193,6 +193,8 @@ class SwarmInstaller(common.Plugin):
         """
 
         n = 0
+
+        print("Removing old secrets.")
 
         n += self.rm_oldest_secrets_in_list(domain, "cert", SwarmInstaller.KEEP_CERTS)
         n += self.rm_oldest_secrets_in_list(domain, "key", SwarmInstaller.KEEP_CERTS)
