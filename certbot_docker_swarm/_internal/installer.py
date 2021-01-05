@@ -164,7 +164,8 @@ class SwarmInstaller(common.Plugin):
 
         remove = sorted(
             self.get_secrets_by_domain_and_name(domain, name),
-            lambda x: int(x.get("Spec").get("Labels").get(SwarmInstaller.L_VERSION))
+            key=lambda x: int(x.get("Spec").get("Labels").get(SwarmInstaller.L_VERSION)),
+            reverse=True
         )[keep + 1:]
 
         n = len(remove)
