@@ -58,8 +58,8 @@ docker service create \
     --secret source=example.com_key_v{version},target=example.com_key \
     --secret source=example.com_chain_v{version},target=example.com_chain \
     --secret source=example.com_fullchain_v{version},target=example.com_fullchain \
-    nginx:alpine \
-    nginx
+    --name nginx \
+    nginx:alpine
 ```
 
 If your service doesn't need all of the secrets you can omit the
