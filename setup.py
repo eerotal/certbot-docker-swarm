@@ -21,7 +21,6 @@ setuptools.setup(
     python_requires='>=3.6',
     install_requires=[
         "docker>=4.4",
-        "pyOpenSSL>=20.0",
         "certbot>=1.10"
     ],
     entry_points={
