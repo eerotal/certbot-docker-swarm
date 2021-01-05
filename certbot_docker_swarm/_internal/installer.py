@@ -134,7 +134,7 @@ class SwarmInstaller(common.Plugin):
         self.secret_from_file(domain, "fullchain", fullchain_path)
 
         self.update_services()
-        self.rm_oldest_secrets(domain)
+        self.rm_old_secrets_by_domain(domain)
 
     def get_secrets_by_domain_and_name(self, domain: str, name: str) -> List[Secret]:
         """Get all secrets of a specific type for a domain.
