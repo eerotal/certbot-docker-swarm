@@ -129,7 +129,8 @@ class SwarmInstaller(common.Plugin):
         self.rm_oldest_secrets(domain)
 
     def get_secrets_by_domain_and_name(self, domain: str, name: str) -> List[Secret]:
-        """
+        """Get all secrets of a specific type for a domain.
+
         :param str domain: The domain whose secrets to get.
         :param str name: The name of the secrets to get.
 
@@ -152,8 +153,9 @@ class SwarmInstaller(common.Plugin):
 
         return ret
 
-    def rm_oldest_secrets_in_list(self, domain: str, name: str, keep: int) -> int:
-        """
+    def rm_old_secrets_by_domain_and_name(self, domain: str, name: str, keep: int) -> int:
+        """Remove oldest secrets for a domain but only remove a specific secret type.
+
         :param str domain: The domain whose secrets to remove.
         :param str name: The secret name to remove, eg. cert, key, ...
         :param keep int: How many secrets to keep.
@@ -184,9 +186,8 @@ class SwarmInstaller(common.Plugin):
 
         return n
 
-    def rm_oldest_secrets(self, domain: str) -> None:
-        """
-        Remove oldest secrets for a domain.
+    def rm_old_secrets_by_domain(self, domain: str) -> None:
+        """Remove oldest secrets for a domain.
 
         SwarmInstaller.KEEP_CERTS number of newest secrets are kept.
 
@@ -197,10 +198,10 @@ class SwarmInstaller(common.Plugin):
 
         print("Removing old secrets.")
 
-        n += self.rm_oldest_secrets_in_list(domain, "cert", SwarmInstaller.KEEP_CERTS)
-        n += self.rm_oldest_secrets_in_list(domain, "key", SwarmInstaller.KEEP_CERTS)
-        n += self.rm_oldest_secrets_in_list(domain, "chain", SwarmInstaller.KEEP_CERTS)
-        n += self.rm_oldest_secrets_in_list(domain, "fullchain", SwarmInstaller.KEEP_CERTS)
+        n += self.rm_old_secrets_by_domain_and_name(domain, "cert", SwarmInstaller.KEEP_CERTS)
+        n += self.rm_old_secrets_by_domain_and_name(domain, "key", SwarmInstaller.KEEP_CERTS)
+        n += self.rm_old_secrets_by_domain_and_name(domain, "chain", SwarmInstaller.KEEP_CERTS)
+        n += self.rm_old_secrets_by_domain_and_name(domain, "fullchain", SwarmInstaller.KEEP_CERTS)
 
         print("Removed {} secrets.".format(n))
 
