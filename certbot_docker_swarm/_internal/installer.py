@@ -14,7 +14,7 @@ import time
 class SwarmInstaller(common.Plugin):
     """Docker Swarm installer."""
 
-    description = "Docker Swarm installer"
+    description = "Docker Swarm Installer"
 
     L_PREFIX = "certbot"
     L_MANAGED = L_PREFIX + ".managed"
@@ -39,7 +39,10 @@ class SwarmInstaller(common.Plugin):
         :return: A help string.
         :rtype str:
         """
-        return "Docker Swarm installer"
+
+        return "Installs certificates as Docker Swarm Secrets and " \
+               "automatically updates Docker Swarm Services to use" \
+               "the renewed secrets."
 
     def secret_from_file(self, domain: str, name: str, filepath: str) -> None:
         """ Create a Docker Swarm secret from a certificate file.
@@ -123,6 +126,8 @@ class SwarmInstaller(common.Plugin):
         self.update_services()
 
     def update_services(self) -> None:
+        """Update Docker Swarm Services to use renewed secrets."""
+
         print("Updating Docker Swarm Services.")
 
         for service in self.docker_client.services.list():
