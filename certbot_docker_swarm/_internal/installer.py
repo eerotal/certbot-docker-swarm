@@ -166,7 +166,7 @@ class SwarmInstaller(common.Plugin):
             self.get_secrets_by_domain_and_name(domain, name),
             key=lambda x: int(x.attrs.get("Spec").get("Labels").get(SwarmInstaller.L_VERSION)),
             reverse=True
-        )[keep + 1:]
+        )[keep:]
 
         n = len(remove)
 
