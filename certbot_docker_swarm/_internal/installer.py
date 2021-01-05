@@ -16,7 +16,12 @@ class SwarmInstaller(common.Plugin):
 
     description = "Docker Swarm installer"
 
-    LABEL_PREFIX="certbot"
+    L_PREFIX = "certbot"
+    L_MANAGED = L_PREFIX + ".managed"
+    L_VERSION = L_PREFIX + ".version"
+    L_DOMAIN = L_PREFIX + ".domain"
+    L_NAME = L_PREFIX + ".name"
+
     SECRET_FORMAT="{domain}_{name}_v{version}"
 
     def __init__(self, *args, **kwargs):
@@ -36,20 +41,6 @@ class SwarmInstaller(common.Plugin):
         """
         return "Docker Swarm installer"
 
-    @staticmethod
-    def get_label(label: List[str]) -> str:
-        """Get a label string prefixed with SwarmInstaller.LABEL_PREFIX.
-
-        :param List[str] label: The label components as a list.
-
-        :return: The label as a string.
-        :rtype: str
-        """
-
-        tmp = [SwarmInstaller.LABEL_PREFIX]
-        tmp.extend(label)
-        return ".".join(tmp)
-
     def secret_from_file(self, domain: str, name: str, filepath: str) -> None:
         """ Create a Docker Swarm secret from a certificate file.
 
@@ -61,10 +52,10 @@ class SwarmInstaller(common.Plugin):
         version=int(time.time())
 
         labels = {}
-        labels[SwarmInstaller.get_label(["managed"])] = "true"
-        labels[SwarmInstaller.get_label(["domain"])] = domain
-        labels[SwarmInstaller.get_label(["name"])] = name
-        labels[SwarmInstaller.get_label(["version"])] = str(version)
+        labels[SwarmInstaller.L_MANAGED] = "true"
+        labels[SwarmInstaller.L_DOMAIN] = domain
+        labels[SwarmInstaller.L_NAME] = name
+        labels[SwarmInstaller.L_VERSION] = str(version)
 
         name = SwarmInstaller.SECRET_FORMAT.format(
             domain=domain,
@@ -97,10 +88,10 @@ class SwarmInstaller(common.Plugin):
 
         for s in self.docker_client.secrets.list():
             labels = s.attrs.get("Spec").get("Labels")
-            if labels.get(SwarmInstaller.get_label(["managed"]), None) != "true":
+            if labels.get(SwarmInstaller.L_MANAGED, None) != "true":
                 continue
 
-            d = labels.get(SwarmInstaller.get_label(["domain"]), None)
+            d = labels.get(SwarmInstaller.L_DOMAIN, None)
             if d is not None and d not in ret:
                 ret.append(d)
 
@@ -129,41 +120,10 @@ class SwarmInstaller(common.Plugin):
         self.secret_from_file(domain, "chain", chain_path)
         self.secret_from_file(domain, "fullchain", fullchain_path)
 
-    def enhance(self, domain: str, enhancement: str, options=None) -> None:
-        raise PluginError("Docker Swarm installer doesn't support enhancements.")
+        self.update_services()
 
-    def supported_enhancements(self) -> List[str]:
-        return []
-
-    def get_renewed_secret(self, domain: str, name: str) -> Optional[Secret]:
-        """Get a renewed secret by domain and name.
-
-        :param str domain: The domain name the secret authenticates.
-        :param str name: The name of the underlying secret, eg. chain, key, ...
-
-        :return: The Secret object or None if not found.
-        :rtype: Optional[Secret]
-        """
-
-        for s in self.renewed_secrets:
-            labels = s.attrs.get("Spec").get("Labels")
-
-            if labels.get(SwarmInstaller.get_label(["domain"]), None) != domain:
-                continue
-            if labels.get(SwarmInstaller.get_label(["name"]), None) != name:
-                continue
-
-            return s
-
-        return None
-
-    def save(self, title: str=None, temporary: bool=False) -> None:
-        if title:
-            raise PluginError("Checkpoints not supported by Docker Swarm installer.")
-        if temporary:
-            raise PluginError("Temporary save not supported by Docker Swarm installer.")
-
-        print("Rotating secrets in Docker Swarm services.")
+    def update_services(self) -> None:
+        print("Updating Docker Swarm Services.")
 
         for service in self.docker_client.services.list():
             print("Working in Swarm service {}".format(service.id))
@@ -181,26 +141,26 @@ class SwarmInstaller(common.Plugin):
                 secret = self.docker_client.secrets.get(tmp.get("SecretID"))
                 labels = secret.attrs.get("Spec").get("Labels")
 
-                managed = labels.get(SwarmInstaller.get_label(["managed"]), None)
-                domain = labels.get(SwarmInstaller.get_label(["domain"]), None)
-                name = labels.get(SwarmInstaller.get_label(["name"]), None)
+                managed = labels.get(SwarmInstaller.L_MANAGED, None)
+                domain = labels.get(SwarmInstaller.L_DOMAIN, None)
+                name = labels.get(SwarmInstaller.L_NAME, None)
                 renewed_secret = self.get_renewed_secret(domain, name)
 
-                update_secret_id = None
-                update_secret_name = None
+                update_id = None
+                update_name = None
 
                 if managed != "true" or renewed_secret is None:
                     # Add non-managed and non-renewed secrets to the service as-is.
-                    update_secret_id = tmp.get("SecretID")
-                    update_secret_name = tmp.get("SecretName")
+                    update_id = tmp.get("SecretID")
+                    update_name = tmp.get("SecretName")
                 else:
                     # Substitute managed secrets with renewed ones.
-                    print("--> Queueing secret update for {}".format(secret.name))
-                    update_secret_id = renewed_secret.id
-                    update_secret_name = renewed_secret.name
+                    print("--> Rotate secret".format(secret.name))
+                    update_id = renewed_secret.id
+                    update_name = renewed_secret.name
                     dirty = True
 
-                # Store old SecretReferences.
+                # Store old SecretReference.
                 old_secret_refs.append(SecretReference(
                     tmp.get("SecretID"),
                     tmp.get("SecretName"),
@@ -210,10 +170,10 @@ class SwarmInstaller(common.Plugin):
                     tmp.get("File").get("Mode")
                 ))
 
-                # Create new SecretReferences.
+                # Create new SecretReference.
                 secret_refs.append(SecretReference(
-                    update_secret_id,
-                    update_secret_name,
+                    update_id,
+                    update_name,
                     tmp.get("File").get("Name"),
                     tmp.get("File").get("UID"),
                     tmp.get("File").get("GID"),
@@ -229,9 +189,40 @@ class SwarmInstaller(common.Plugin):
                 # Update service.
                 service.update(secrets=secret_refs)
 
+    def enhance(self, domain: str, enhancement: str, options=None) -> None:
+        pass
+
+    def supported_enhancements(self) -> List[str]:
+        return []
+
+    def get_renewed_secret(self, domain: str, name: str) -> Optional[Secret]:
+        """Get a renewed secret by domain and name.
+
+        :param str domain: The domain name the secret authenticates.
+        :param str name: The name of the underlying secret, eg. chain, key, ...
+
+        :return: The Secret object or None if not found.
+        :rtype: Optional[Secret]
+        """
+
+        for secret_id in self.renewed_secrets:
+            secret = self.renewed_secrets[secret_id]
+            labels = secret.attrs.get("Spec").get("Labels")
+
+            if labels.get(SwarmInstaller.L_DOMAIN, None) != domain:
+                continue
+            if labels.get(SwarmInstaller.L_NAME, None) != name:
+                continue
+
+            return secret
+
+        return None
+
+    def save(self, title: str=None, temporary: bool=False) -> None:
+        pass
 
     def rollback_checkpoints(self, rollback=1) -> None:
-        raise PluginError("Docker Swarm installer doesn't support rollbacks.")
+        pass
 
     def recovery_routine(self) -> None:
         """Revert changes to updated services.
@@ -240,22 +231,12 @@ class SwarmInstaller(common.Plugin):
         """
 
         # Attempt to rollback service changes.
-        revert_failed = False
         for service_id in self.old_secret_refs:
             service = self.docker_client.services.get(service_id)
-            try:
-                service.update(secrets=self.old_secret_refs[service_id])
-            except APIError:
-                revert_failed = True
-
-        if revert_failed:
-            print("Rollback failed for some services.")
+            service.update(secrets=self.old_secret_refs[service_id])
 
     def config_test(self) -> None:
-        # No configuration checks required.
         pass
 
     def restart(self) -> None:
-        # Docker Swarm services are automatically restarted
-        # after deployment so we can just skip this.
         pass
