@@ -24,12 +24,20 @@ class SwarmInstaller(common.Plugin):
 
     SECRET_FORMAT="{domain}_{name}_v{version}"
 
-    KEEP_CERTS=5
-
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
         self.renewed_secrets = {}
         self.old_secret_refs = {}
+
+        # Use the Docker task retention limit as the number of old
+        # secrets to keep. This makes sure enough secrets for historic
+        # tasks are always kept in the Swarm.
+        info = self.docker_client.info()
+        self.keep_secrets = info.get("Swarm") \
+                                .get("Cluster") \
+                                .get("Spec") \
+                                .get("Orchestration") \
+                                .get("TaskHistoryRetentionLimit")
 
     def prepare(self) -> None:
         # No additional preparation is necessary.
@@ -189,7 +197,7 @@ class SwarmInstaller(common.Plugin):
     def rm_old_secrets_by_domain(self, domain: str) -> None:
         """Remove oldest secrets for a domain.
 
-        SwarmInstaller.KEEP_CERTS number of newest secrets are kept.
+        self.keep_secrets number of newest secrets are kept.
 
         :param str domain: The domain whose secrets to remove.
         """
@@ -198,10 +206,10 @@ class SwarmInstaller(common.Plugin):
 
         print("Removing old secrets.")
 
-        n += self.rm_old_secrets_by_domain_and_name(domain, "cert", SwarmInstaller.KEEP_CERTS)
-        n += self.rm_old_secrets_by_domain_and_name(domain, "key", SwarmInstaller.KEEP_CERTS)
-        n += self.rm_old_secrets_by_domain_and_name(domain, "chain", SwarmInstaller.KEEP_CERTS)
-        n += self.rm_old_secrets_by_domain_and_name(domain, "fullchain", SwarmInstaller.KEEP_CERTS)
+        n += self.rm_old_secrets_by_domain_and_name(domain, "cert", self.keep_secrets)
+        n += self.rm_old_secrets_by_domain_and_name(domain, "key", self.keep_secrets)
+        n += self.rm_old_secrets_by_domain_and_name(domain, "chain", self.keep_secrets)
+        n += self.rm_old_secrets_by_domain_and_name(domain, "fullchain", self.keep_secrets)
 
         print("Removed {} secrets.".format(n))
 
@@ -219,7 +227,10 @@ class SwarmInstaller(common.Plugin):
             dirty = False
             secret_refs = []
             old_secret_refs = []
-            secret_conf = service.attrs.get("Spec").get("TaskTemplate").get("ContainerSpec").get("Secrets")
+            secret_conf = service.attrs.get("Spec")\
+                                       .get("TaskTemplate")\
+                                       .get("ContainerSpec")\
+                                       .get("Secrets")
 
             if secret_conf is None:
                 # Skip services with no secrets.
