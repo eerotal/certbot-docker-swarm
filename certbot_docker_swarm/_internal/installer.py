@@ -24,6 +24,8 @@ class SwarmInstaller(common.Plugin):
 
     SECRET_FORMAT="{domain}_{name}_v{version}"
 
+    KEEP_CERTS=5
+
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
         self.renewed_secrets = {}
@@ -124,6 +126,80 @@ class SwarmInstaller(common.Plugin):
         self.secret_from_file(domain, "fullchain", fullchain_path)
 
         self.update_services()
+        self.rm_oldest_secrets()
+
+    def get_secrets_by_domain_and_name(self, domain: str, name: str) -> List[Secret]:
+        """
+        :param str domain: The domain whose secrets to get.
+        :param str name: The name of the secrets to get.
+
+        :return: A list of secrets.
+        :rtype: List[Secret]
+        """
+
+        ret = []
+        secrets = self.docker_client.secrets.list()
+
+        for secret in secrets:
+            labels = secret.attrs.get("Spec").get("Labels")
+            if labels.get(SwarmInstaller.L_MANAGED, None) != "true":
+                continue
+            if labels.get(SwarmInstaller.L_DOMAIN, None) != domain:
+                continue
+            if labels.get(SwarmInstaller.L_NAME, None) != name:
+                continue
+            ret.append(secret)
+
+        return ret
+
+    def rm_oldest_secrets_in_list(self, domain: str, name: str, keep: int) -> int:
+        """
+        :param str domain: The domain whose secrets to remove.
+        :param str name: The secret name to remove, eg. cert, key, ...
+        :param keep int: How many secrets to keep.
+
+        :return: The number of secrets removed.
+        :rtype: int
+        """
+
+        remove = sorted(
+            self.get_secrets_by_domain_and_name(domain, name),
+            lambda x: int(x.get("Spec").get("Labels").get(SwarmInstaller.L_VERSION))
+        )[keep + 1:]
+
+        n = len(remove)
+
+        for secret in remove:
+            try:
+                secret.remove()
+            except APIError:
+                print(
+                    "Failed to remove secret {} (id: {}). It might still be in use."
+                    .format(secret.name, secret.id)
+                )
+                n -= 1
+
+            print("Removed secret {} (id: {})".format(secret.name, secret.id))
+
+        return n
+
+    def rm_oldest_secrets(self, domain: str) -> None:
+        """
+        Remove oldest secrets for a domain.
+
+        SwarmInstaller.KEEP_CERTS number of newest secrets are kept.
+
+        :param str domain: The domain whose secrets to remove.
+        """
+
+        n = 0
+
+        n += self.rm_oldest_secrets_in_list(domain, "cert", SwarmInstaller.KEEP_CERTS)
+        n += self.rm_oldest_secrets_in_list(domain, "key", SwarmInstaller.KEEP_CERTS)
+        n += self.rm_oldest_secrets_in_list(domain, "chain", SwarmInstaller.KEEP_CERTS)
+        n += self.rm_oldest_secrets_in_list(domain, "fullchain", SwarmInstaller.KEEP_CERTS)
+
+        print("Removed {} secrets.".format(n))
 
     def update_services(self) -> None:
         """Update Docker Swarm Services to use renewed secrets."""
