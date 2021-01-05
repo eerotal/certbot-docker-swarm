@@ -126,7 +126,10 @@ class SwarmInstaller(common.Plugin):
         print("Updating Docker Swarm Services.")
 
         for service in self.docker_client.services.list():
-            print("Working in Swarm service {}".format(service.id))
+            print(
+                "Working in service {} (id: {})"
+                .format(service.name, service.id)
+            )
 
             dirty = False
             secret_refs = []
@@ -141,6 +144,8 @@ class SwarmInstaller(common.Plugin):
                 secret = self.docker_client.secrets.get(tmp.get("SecretID"))
                 labels = secret.attrs.get("Spec").get("Labels")
 
+                # Get the renewed secret corresponding to the
+                # old secret defined in the service spec.
                 managed = labels.get(SwarmInstaller.L_MANAGED, None)
                 domain = labels.get(SwarmInstaller.L_DOMAIN, None)
                 name = labels.get(SwarmInstaller.L_NAME, None)
@@ -155,7 +160,19 @@ class SwarmInstaller(common.Plugin):
                     update_name = tmp.get("SecretName")
                 else:
                     # Substitute managed secrets with renewed ones.
-                    print("--> Rotate secret".format(secret.name))
+                    print(
+                        "--> Update {}"
+                        .format(tmp.get("File").get("Name"))
+                    )
+                    print(
+                        "----> from {} (id: {})"
+                        .format(tmp.get("SecretName"), tmp.get("SecretID"))
+                    )
+                    print(
+                        "----> to {} (id: {})"
+                        .format(renewed_secret.name, renewed_secret.id)
+                    )
+
                     update_id = renewed_secret.id
                     update_name = renewed_secret.name
                     dirty = True
@@ -182,11 +199,7 @@ class SwarmInstaller(common.Plugin):
 
             if dirty:
                 print("--> Committing changes.")
-
-                 # Store old secret refs in case changes need to be reverted.
                 self.old_secret_refs[service.id] = old_secret_refs
-
-                # Update service.
                 service.update(secrets=secret_refs)
 
     def enhance(self, domain: str, enhancement: str, options=None) -> None:
