@@ -2,7 +2,7 @@ import zope.interface
 from certbot import interfaces
 from certbot.errors import PluginError
 from certbot.plugins import common
-from typing import List
+from typing import List, Optional
 import docker
 from docker.errors import APIError
 from docker.types.services import SecretReference
@@ -21,7 +21,8 @@ class SwarmInstaller(common.Plugin):
 
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
-        self.created_secrets = {}
+        self.renewed_secrets = {}
+        self.old_secret_refs = {}
 
     def prepare(self) -> None:
         # No additional preparation is necessary.
@@ -37,7 +38,7 @@ class SwarmInstaller(common.Plugin):
 
     @staticmethod
     def get_label(label: List[str]) -> str:
-        """Get a fully qualified label string.
+        """Get a label string prefixed with SwarmInstaller.LABEL_PREFIX.
 
         :param List[str] label: The label components as a list.
 
@@ -50,7 +51,7 @@ class SwarmInstaller(common.Plugin):
         return ".".join(tmp)
 
     def secret_from_file(self, domain: str, name: str, filepath: str) -> None:
-        """ Create a Docker Swarm secret from a file.
+        """ Create a Docker Swarm secret from a certificate file.
 
         :param domain str: The domain the secret authenticates.
         :param name str: The name of the secret.
@@ -79,9 +80,12 @@ class SwarmInstaller(common.Plugin):
                     labels=labels
                 ).id
             except:
-                raise PluginError("Failed to create Docker Secret: {}".format(name))
+                raise PluginError(
+                    "Failed to create Docker Secret: {}"
+                    .format(name)
+                )
 
-            self.created_secrets[secret_id] = self.docker_client.secrets.get(secret_id)
+            self.renewed_secrets[secret_id] = self.docker_client.secrets.get(secret_id)
 
     def get_all_names(self) -> List[str]:
         """Get all domain names that have at least one existing certificate secret.
@@ -102,8 +106,15 @@ class SwarmInstaller(common.Plugin):
 
         return ret
 
-    def deploy_cert(self, domain: str, cert_path: str, key_path: str, chain_path: str, fullchain_path: str) -> None:
-        """Create Docker Swarm secrets from certificates.
+    def deploy_cert(
+            self,
+            domain: str,
+            cert_path: str,
+            key_path: str,
+            chain_path: str,
+            fullchain_path: str
+    ) -> None:
+        """Create Docker Swarm Secrets from certificates.
 
         :param str domain: Certificate domain.
         :param str cert_path: Path to the certificate file.
@@ -119,103 +130,126 @@ class SwarmInstaller(common.Plugin):
         self.secret_from_file(domain, "fullchain", fullchain_path)
 
     def enhance(self, domain: str, enhancement: str, options=None) -> None:
-        # No enchancements are possible with Docker Swarm secrets.
         raise PluginError("Docker Swarm installer doesn't support enhancements.")
 
     def supported_enhancements(self) -> List[str]:
-        # No enchancements are possible with Docker Swarm secrets.
         return []
 
-    def create_secret_ref(self, secret_conf: dict) -> SecretReference:
-        return SecretReference(
-            secret_conf.get("SecretID"),
-            secret_conf.get("SecretName"),
-            secret_conf.get("File").get("Name"),
-            secret_conf.get("File").get("UID"),
-            secret_conf.get("File").get("GID"),
-            secret_conf.get("File").get("Mode")
-        )
+    def get_renewed_secret(self, domain: str, name: str) -> Optional[Secret]:
+        """Get a renewed secret by domain and name.
 
-    def create_subst_secret_ref(self, domain: str, old_conf: dict) -> SecretReference:
-        for s in self.created_secrets:
+        :param str domain: The domain name the secret authenticates.
+        :param str name: The name of the underlying secret, eg. chain, key, ...
+
+        :return: The Secret object or None if not found.
+        :rtype: Optional[Secret]
+        """
+
+        for s in self.renewed_secrets:
             labels = s.attrs.get("Spec").get("Labels")
 
             if labels.get(SwarmInstaller.get_label(["domain"]), None) != domain:
                 continue
+            if labels.get(SwarmInstaller.get_label(["name"]), None) != name:
+                continue
 
-            return SecretReference(
-                s.id,
-                s.name,
-                old_conf.get("File").get("Name"),
-                old_conf.get("File").get("UID"),
-                old_conf.get("File").get("GID"),
-                old_conf.get("File").get("Mode")
-            )
+            return s
 
-        raise PluginError("No secret for domain: {}".format(domain))
+        return None
 
     def save(self, title: str=None, temporary: bool=False) -> None:
+        if title:
+            raise PluginError("Checkpoints not supported by Docker Swarm installer.")
         if temporary:
-            return
+            raise PluginError("Temporary save not supported by Docker Swarm installer.")
 
         print("Rotating secrets in Docker Swarm services.")
 
-        services = self.docker_client.services.list()
-        for service in services:
+        for service in self.docker_client.services.list():
             print("Working in Swarm service {}".format(service.id))
 
             dirty = False
             secret_refs = []
+            old_secret_refs = []
             secret_conf = service.attrs.get("Spec").get("TaskTemplate").get("ContainerSpec").get("Secrets")
 
             if secret_conf is None:
+                # Skip services with no secrets.
                 continue
 
             for tmp in secret_conf:
                 secret = self.docker_client.secrets.get(tmp.get("SecretID"))
                 labels = secret.attrs.get("Spec").get("Labels")
 
-                if labels.get(SwarmInstaller.get_label(["managed"]), None) != "true":
-                    # Add secret to updated service as-is.
-                    secret_refs.append(self.create_secret_ref(tmp))
+                managed = labels.get(SwarmInstaller.get_label(["managed"]), None)
+                domain = labels.get(SwarmInstaller.get_label(["domain"]), None)
+                name = labels.get(SwarmInstaller.get_label(["name"]), None)
+                renewed_secret = self.get_renewed_secret(domain, name)
+
+                update_secret_id = None
+                update_secret_name = None
+
+                if managed != "true" or renewed_secret is None:
+                    # Add non-managed and non-renewed secrets to the service as-is.
+                    update_secret_id = tmp.get("SecretID")
+                    update_secret_name = tmp.get("SecretName")
                 else:
-                    # Substitute secret with a new one.
+                    # Substitute managed secrets with renewed ones.
                     print("--> Queueing secret update for {}".format(secret.name))
-
-                    domain = labels.get(SwarmInstaller.get_label(["domain"]))
-                    secret_refs.append(
-                        self.create_subst_secret_ref(
-                            domain,
-                            tmp
-                        )
-                    )
-
+                    update_secret_id = renewed_secret.id
+                    update_secret_name = renewed_secret.name
                     dirty = True
+
+                # Store old SecretReferences.
+                old_secret_refs.append(SecretReference(
+                    tmp.get("SecretID"),
+                    tmp.get("SecretName"),
+                    tmp.get("File").get("Name"),
+                    tmp.get("File").get("UID"),
+                    tmp.get("File").get("GID"),
+                    tmp.get("File").get("Mode")
+                ))
+
+                # Create new SecretReferences.
+                secret_refs.append(SecretReference(
+                    update_secret_id,
+                    update_secret_name,
+                    tmp.get("File").get("Name"),
+                    tmp.get("File").get("UID"),
+                    tmp.get("File").get("GID"),
+                    tmp.get("File").get("Mode")
+                ))
 
             if dirty:
                 print("--> Committing changes.")
+
+                 # Store old secret refs in case changes need to be reverted.
+                self.old_secret_refs[service.id] = old_secret_refs
+
+                # Update service.
                 service.update(secrets=secret_refs)
 
 
     def rollback_checkpoints(self, rollback=1) -> None:
-        # Rollbacks should be handled using Docker Swarm service rollbacks.
         raise PluginError("Docker Swarm installer doesn't support rollbacks.")
 
     def recovery_routine(self) -> None:
-        """Revert changes to deployed certificates.
+        """Revert changes to updated services.
 
         :raises PluginError: If recovery fails.
         """
 
-        # Remove all newly generated secrets.
-        for secret_id in self.created_secrets:
+        # Attempt to rollback service changes.
+        revert_failed = False
+        for service_id in self.old_secret_refs:
+            service = self.docker_client.services.get(service_id)
             try:
-                self.created_secrets[secret_id].remove()
+                service.update(secrets=self.old_secret_refs[service_id])
             except APIError:
-                raise PluginError(
-                    "Failed to remove secret {} during recovery."
-                    .format(secret_id)
-                )
+                revert_failed = True
+
+        if revert_failed:
+            print("Rollback failed for some services.")
 
     def config_test(self) -> None:
         # No configuration checks required.
