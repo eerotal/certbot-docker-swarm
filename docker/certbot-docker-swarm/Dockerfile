@@ -27,6 +27,7 @@ RUN apk add --no-cache \
 COPY docker-entrypoint.sh .
 COPY src/ .
 
-RUN ln -s dump-config.py /usr/bin/dump-config
+RUN printf "#!/bin/sh\n/usr/bin/python3 /root/dump-config.py\n" > /usr/bin/dump-config && \
+    chmod +x /usr/bin/dump-config
 
 ENTRYPOINT ["sh", "docker-entrypoint.sh"]
