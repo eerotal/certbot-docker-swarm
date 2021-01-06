@@ -36,10 +36,22 @@ class SwarmInstaller(Plugin):
         self.renewed_secrets = {}
         self.old_secret_refs = {}
 
+        info = self.docker_client.info()
+        node_id = info.get("Swarm").get("NodeID")
+        node = self.docker_client.nodes.get(node_id)
+
+        node_state = info.get("Swarm").get("LocalNodeState")
+        node_role = node.attrs.get("Spec").get("Role")
+
+        # Make sure we are running on a Docker Swarm manager node.
+        if node_state != "active":
+            raise PluginError("Swarm not active.")
+        if node_role != "manager":
+            raise PluginError("Not running on a Swarm Manager node.")
+
         # Use the Docker task retention limit as the number of old
         # secrets to keep. This makes sure enough secrets for historic
         # tasks are always kept in the Swarm.
-        info = self.docker_client.info()
         self.keep_secrets = info.get("Swarm") \
                                 .get("Cluster") \
                                 .get("Spec") \
