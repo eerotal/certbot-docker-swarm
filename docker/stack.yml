@@ -2,9 +2,9 @@
 # Example Docker Swarm stack for running certbot-docker-swarm. You must also
 # define the following environment variables:
 #
-#  CB_EMAIL: Your Let's Encrypt account E-mail address.
+#  CB_EMAIL: Your ACME server account E-mail address.
 #  CB_DOMAINS: A comma separated list of domains to acquire certificates for.
-#  CB_AGREE_TOS: Set this to y to agree to the Let's Encrypt TOS.
+#  CB_AGREE_TOS: Set this to y to agree to the ACME server's TOS.
 #
 
 version: "3.9"

@@ -69,6 +69,6 @@ Some important paths in the container are described in the table below.
 Notes:
 
 1. You should mount a volume at `/etc/letsencrypt` to preserve certificates and
-   Let's Encrypt account configuration across container updates.
+   ACME server account configuration across container updates.
 2. You must mount the Docker socket from the Swarm manager node into the container
    at `/var/run/docker.sock`. Otherwiser the container can't manage the Swarm cluster.

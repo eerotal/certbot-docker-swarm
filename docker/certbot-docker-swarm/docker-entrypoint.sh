@@ -20,7 +20,7 @@ fi
 
 # Check that all necessary env vars are set.
 if [ "${CB_AGREE_TOS}" != "y" ]; then
-    printf "[ERROR] You must agree to the Let's Encrypt TOS by "
+    printf "[ERROR] You must agree to the ACME server's TOS by "
     printf "setting the env var CB_AGREE_TOS=y.\n"
     exit 1
 fi
@@ -57,9 +57,9 @@ if [ "${CB_AUTO_DEPLOY}"  = "y" ]; then
     CB_RUN_ARGS="${CB_RUN_ARGS} --installer=docker-swarm"
 fi
 
-# Use staging Let's Encrypt servers if the user has enabled them.
+# Use staging servers if the user has enabled them.
 if [ "$CB_STAGING" = "y" ]; then
-    printf "[WARNING] Using the Let's Encrypt staging server!\n"
+    printf "[WARNING] Using the ACME server's staging server!\n"
     CB_RUN_ARGS="${CB_RUN_ARGS} --staging"
     CB_RENEW_ARGS="${CB_RENEW_ARGS} --staging"
 fi
