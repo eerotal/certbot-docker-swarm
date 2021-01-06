@@ -22,7 +22,6 @@ services:
 
     volumes:
       - certbot-docker-swarm-data:/etc/letsencrypt/
-      - /etc/certbot-docker-swarm/:/root/conf/
       - /var/run/docker.sock:/var/run/docker.sock
 
     deploy:

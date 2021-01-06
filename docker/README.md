@@ -10,6 +10,26 @@ You can find the Docker images on Docker Hub at
 
 ## Usage
 
+### Entrypoint commands
+
+You can pass the Docker container a few arguments to perform different tasks
+using `docker exec`. All of the implemented arguments are described in the table below.
+
+| Command       | Description                                                    |
+|---------------|----------------------------------------------------------------|
+|               | Run the automatic certificate acquisition and renewal process. |
+| `shell`       | Start an interactive shell in the container.                   |
+| `dump-config` | Dump secret configuration of an existing Docker Swarm stack.   |
+
+`dump-config` can be used to dump the secret configuration of an existing Docker
+Swarm stack as a docker-compose file. This is useful if you want to update a
+Swarm stack but you still want to keep the secret configuration of the stack. The
+docker-compose file is printed to stdout by default but you can redirect the
+contents to a file and pass the file to `docker stack deploy` using the `-c`
+flag. Pass `dump-config --help` to the container for more information. Note that
+you'll need to figure out the ID of the `certbot-docker-swarm` container using
+`docker ps` because you can't use `docker exec` on a Swarm service directly.
+
 ### Environment variables
 
 The Docker image can only run on a Docker Swarm manager node. Attempting to run it

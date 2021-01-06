@@ -14,7 +14,8 @@ WORKDIR /root
 
 RUN apk add --no-cache \
         certbot \
-        docker-py && \
+        docker-py \
+        py3-yaml && \
     apk add --no-cache --virtual py3-build-deps \
         git \
         py3-setuptools && \
@@ -26,4 +27,4 @@ RUN apk add --no-cache \
 COPY docker-entrypoint.sh .
 COPY src/ .
 
-CMD ["sh", "docker-entrypoint.sh"]
+ENTRYPOINT ["sh", "docker-entrypoint.sh"]
