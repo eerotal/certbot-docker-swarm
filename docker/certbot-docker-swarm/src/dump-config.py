@@ -1,3 +1,5 @@
+#/usr/bin/env python3
+
 #
 # A Python script for dumping the current secret configuration of a
 # Docker Swarm stack as a Docker Compose YAML file.

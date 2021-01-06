@@ -27,4 +27,6 @@ RUN apk add --no-cache \
 COPY docker-entrypoint.sh .
 COPY src/ .
 
+RUN ln -s dump-config.py /usr/bin/dump-config
+
 ENTRYPOINT ["sh", "docker-entrypoint.sh"]
