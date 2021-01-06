@@ -1,3 +1,5 @@
+"""Docker Swarm installer"""
+
 import zope.interface
 from certbot import interfaces
 from certbot.errors import PluginError
@@ -39,6 +41,8 @@ class SwarmInstaller(common.Plugin):
                                 .get("Orchestration") \
                                 .get("TaskHistoryRetentionLimit")
 
+        super().__init__(*args, **kwargs)
+
     def prepare(self) -> None:
         # No additional preparation is necessary.
         pass
@@ -78,21 +82,21 @@ class SwarmInstaller(common.Plugin):
 
         with open(filepath, "r") as f:
             try:
-                secret_id = self.docker_client.secrets.create(
+                sid = self.docker_client.secrets.create(
                     name=name,
                     data=f.read(),
                     labels=labels
                 ).id
-            except:
+            except APIError as e:
                 raise PluginError(
-                    "Failed to create Docker Secret: {}"
-                    .format(name)
-                )
+                    "Failed to create Docker Secret {}: {}"
+                    .format(name, str(e))
+                ) from e
 
-            self.renewed_secrets[secret_id] = self.docker_client.secrets.get(secret_id)
+            self.renewed_secrets[sid] = self.docker_client.secrets.get(sid)
 
     def get_all_names(self) -> List[str]:
-        """Get all domain names that have at least one existing certificate secret.
+        """Get all domain names that have at least one existing secret.
 
         :rtype: List[str]
         """
@@ -136,7 +140,10 @@ class SwarmInstaller(common.Plugin):
         self.update_services()
         self.rm_old_secrets_by_domain(domain)
 
-    def get_secrets_by_domain_and_name(self, domain: str, name: str) -> List[Secret]:
+    def get_secrets_by_domain_and_name(
+            self, domain: str,
+            name: str
+    ) -> List[Secret]:
         """Get all secrets of a specific type for a domain.
 
         :param str domain: The domain whose secrets to get.
@@ -161,8 +168,13 @@ class SwarmInstaller(common.Plugin):
 
         return ret
 
-    def rm_old_secrets_by_domain_and_name(self, domain: str, name: str, keep: int) -> int:
-        """Remove oldest secrets for a domain but only remove a specific secret type.
+    def rm_old_secrets_by_domain_and_name(
+            self,
+            domain: str,
+            name: str,
+            keep: int
+    ) -> int:
+        """Remove oldest secrets of a specific type for a specific domain.
 
         :param str domain: The domain whose secrets to remove.
         :param str name: The secret name to remove, eg. cert, key, ...
@@ -174,7 +186,12 @@ class SwarmInstaller(common.Plugin):
 
         remove = sorted(
             self.get_secrets_by_domain_and_name(domain, name),
-            key=lambda x: int(x.attrs.get("Spec").get("Labels").get(SwarmInstaller.L_VERSION)),
+            key=lambda x: int(
+                x.attrs \
+                .get("Spec") \
+                .get("Labels") \
+                .get(SwarmInstaller.L_VERSION) \
+            ),
             reverse=True
         )[keep:]
 
@@ -183,10 +200,10 @@ class SwarmInstaller(common.Plugin):
         for secret in remove:
             try:
                 secret.remove()
-            except APIError:
+            except APIError as e:
                 print(
-                    "Failed to remove secret {} (id: {}). It might still be in use."
-                    .format(secret.name, secret.id)
+                    "Failed to remove secret {} (id: {}): {}"
+                    .format(secret.name, secret.id, str(e))
                 )
                 n -= 1
 
@@ -206,10 +223,26 @@ class SwarmInstaller(common.Plugin):
 
         print("Removing old secrets.")
 
-        n += self.rm_old_secrets_by_domain_and_name(domain, "cert", self.keep_secrets)
-        n += self.rm_old_secrets_by_domain_and_name(domain, "key", self.keep_secrets)
-        n += self.rm_old_secrets_by_domain_and_name(domain, "chain", self.keep_secrets)
-        n += self.rm_old_secrets_by_domain_and_name(domain, "fullchain", self.keep_secrets)
+        n += self.rm_old_secrets_by_domain_and_name(
+            domain,
+            "cert",
+            self.keep_secrets
+        )
+        n += self.rm_old_secrets_by_domain_and_name(
+            domain,
+            "key",
+            self.keep_secrets
+        )
+        n += self.rm_old_secrets_by_domain_and_name(
+            domain,
+            "chain",
+            self.keep_secrets
+        )
+        n += self.rm_old_secrets_by_domain_and_name(
+            domain,
+            "fullchain",
+            self.keep_secrets
+        )
 
         print("Removed {} secrets.".format(n))
 
@@ -251,7 +284,7 @@ class SwarmInstaller(common.Plugin):
                 update_name = None
 
                 if managed != "true" or renewed_secret is None:
-                    # Add non-managed and non-renewed secrets to the service as-is.
+                    # Add non-managed and non-renewed secrets as-is.
                     update_id = tmp.get("SecretID")
                     update_name = tmp.get("SecretName")
                 else:
@@ -334,15 +367,26 @@ class SwarmInstaller(common.Plugin):
         pass
 
     def recovery_routine(self) -> None:
-        """Revert changes to updated services.
+        """Revert changes to updated services."""
 
-        :raises PluginError: If recovery fails.
-        """
-
-        # Attempt to rollback service changes.
+        failed = []
         for service_id in self.old_secret_refs:
             service = self.docker_client.services.get(service_id)
-            service.update(secrets=self.old_secret_refs[service_id])
+
+            try:
+                service.update(secrets=self.old_secret_refs[service_id])
+            except APIError as e:
+                print(
+                    "Failed to rollback service: {}: {}"
+                    .format(service.name, str(e))
+                )
+                failed.append(service)
+
+        if len(failed) != 0:
+            raise PluginError(
+                "Failed to rollback {} services."
+                .format(len(failed))
+            )
 
     def config_test(self) -> None:
         pass
