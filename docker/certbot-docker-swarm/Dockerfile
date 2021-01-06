@@ -25,6 +25,5 @@ RUN apk add --no-cache \
 
 COPY docker-entrypoint.sh .
 COPY src/ .
-RUN mkdir -p conf
 
 CMD ["sh", "docker-entrypoint.sh"]

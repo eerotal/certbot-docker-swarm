@@ -70,12 +70,6 @@ else
     CB_CERTONLY_ARGS="${CB_CERTONLY_ARGS} --no-eff-email"
 fi
 
-# Copy dump-config.py to ${CONFDIR} after the container is booted.
-# This is done after boot because otherwise the script would be
-# overwritten by Docker volume mounts.
-printf "[INFO] Copying dump-config.py to ${CONFDIR}.\n"
-cp "${WORKDIR}/dump-config.py" "${CONFDIR}/"
-
 # Run certbot once to make sure certificates exist.
 printf "[INFO] Running certbot.\n"
 /usr/bin/certbot certonly $CB_CERTONLY_ARGS
