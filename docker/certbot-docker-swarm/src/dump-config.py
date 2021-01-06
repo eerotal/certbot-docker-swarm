@@ -30,6 +30,9 @@ def get_secrets(service: Service) -> dict:
                            .get("ContainerSpec") \
                            .get("Secrets")
 
+    if secrets is None:
+        return {}
+
     for s in secrets:
         ret[s.get("File").get("Name")] = {
             "name": s.get("SecretName"),
