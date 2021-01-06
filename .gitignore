@@ -5,3 +5,5 @@ build
 *.egg-info
 dist
 *.pyc
+env.yml
+.mypy_cache
