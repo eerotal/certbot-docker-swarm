@@ -1,19 +1,21 @@
 """Docker Swarm installer"""
 
+import time
 import zope.interface
-from certbot import interfaces
+from acme.magic_typing import List, Optional
+
+from certbot.interfaces import IInstaller, IPluginFactory
+from certbot.plugins.common import Plugin
 from certbot.errors import PluginError
-from certbot.plugins import common
-from typing import List, Optional
+
 import docker
 from docker.errors import APIError
 from docker.types.services import SecretReference
 from docker.models.secrets import Secret
-import time
 
-@zope.interface.implementer(interfaces.IInstaller)
-@zope.interface.provider(interfaces.IPluginFactory)
-class SwarmInstaller(common.Plugin):
+@zope.interface.implementer(IInstaller)
+@zope.interface.provider(IPluginFactory)
+class SwarmInstaller(Plugin):
     """Docker Swarm installer."""
 
     description = "Docker Swarm Installer"
@@ -41,13 +43,15 @@ class SwarmInstaller(common.Plugin):
                                 .get("Orchestration") \
                                 .get("TaskHistoryRetentionLimit")
 
-        super().__init__(*args, **kwargs)
+        super(SwarmInstaller, self).__init__(*args, **kwargs)
 
-    def prepare(self) -> None:
+    def prepare(self):
+        # type: () -> None
         # No additional preparation is necessary.
         pass
 
-    def more_info(self) -> str:
+    def more_info(self):
+        # type: () -> str
         """Return a human-readable help string.
 
         :return: A help string.
@@ -58,7 +62,8 @@ class SwarmInstaller(common.Plugin):
                "automatically updates Docker Swarm Services to use" \
                "the renewed secrets."
 
-    def secret_from_file(self, domain: str, name: str, filepath: str) -> None:
+    def secret_from_file(self, domain, name, filepath):
+        # type: (str, str, str) -> None
         """ Create a Docker Swarm secret from a certificate file.
 
         :param domain str: The domain the secret authenticates.
@@ -91,11 +96,12 @@ class SwarmInstaller(common.Plugin):
                 raise PluginError(
                     "Failed to create Docker Secret {}: {}"
                     .format(name, str(e))
-                ) from e
+                )
 
             self.renewed_secrets[sid] = self.docker_client.secrets.get(sid)
 
-    def get_all_names(self) -> List[str]:
+    def get_all_names(self):
+        # type: () -> List[str]
         """Get all domain names that have at least one existing secret.
 
         :rtype: List[str]
@@ -115,13 +121,14 @@ class SwarmInstaller(common.Plugin):
         return ret
 
     def deploy_cert(
-            self,
-            domain: str,
-            cert_path: str,
-            key_path: str,
-            chain_path: str,
-            fullchain_path: str
-    ) -> None:
+        self,
+        domain,
+        cert_path,
+        key_path,
+        chain_path,
+        fullchain_path
+    ):
+        # type: (str, str, str, str, str) -> None
         """Create Docker Swarm Secrets from certificates.
 
         :param str domain: Certificate domain.
@@ -140,10 +147,8 @@ class SwarmInstaller(common.Plugin):
         self.update_services()
         self.rm_old_secrets_by_domain(domain)
 
-    def get_secrets_by_domain_and_name(
-            self, domain: str,
-            name: str
-    ) -> List[Secret]:
+    def get_secrets_by_domain_and_name(self, domain, name):
+        # type: (str, str) -> List[Secret]
         """Get all secrets of a specific type for a domain.
 
         :param str domain: The domain whose secrets to get.
@@ -168,12 +173,8 @@ class SwarmInstaller(common.Plugin):
 
         return ret
 
-    def rm_old_secrets_by_domain_and_name(
-            self,
-            domain: str,
-            name: str,
-            keep: int
-    ) -> int:
+    def rm_old_secrets_by_domain_and_name(self, domain, name, keep):
+        # type: (str, str, int) -> int
         """Remove oldest secrets of a specific type for a specific domain.
 
         :param str domain: The domain whose secrets to remove.
@@ -211,7 +212,8 @@ class SwarmInstaller(common.Plugin):
 
         return n
 
-    def rm_old_secrets_by_domain(self, domain: str) -> None:
+    def rm_old_secrets_by_domain(self, domain):
+        # type: (str) -> None
         """Remove oldest secrets for a domain.
 
         self.keep_secrets number of newest secrets are kept.
@@ -246,7 +248,8 @@ class SwarmInstaller(common.Plugin):
 
         print("Removed {} secrets.".format(n))
 
-    def update_services(self) -> None:
+    def update_services(self):
+        # type: () -> None
         """Update Docker Swarm Services to use renewed secrets."""
 
         print("Updating Docker Swarm Services.")
@@ -331,13 +334,16 @@ class SwarmInstaller(common.Plugin):
                 self.old_secret_refs[service.id] = old_secret_refs
                 service.update(secrets=secret_refs)
 
-    def enhance(self, domain: str, enhancement: str, options=None) -> None:
+    def enhance(self, domain, enhancement, options=None):
+        # type: (str, str, dict) -> None
         pass
 
-    def supported_enhancements(self) -> List[str]:
+    def supported_enhancements(self):
+        # type: () -> List[str]
         return []
 
-    def get_renewed_secret(self, domain: str, name: str) -> Optional[Secret]:
+    def get_renewed_secret(self, domain, name):
+        # type: (str, str) -> Optional[Secret]
         """Get a renewed secret by domain and name.
 
         :param str domain: The domain name the secret authenticates.
@@ -360,13 +366,16 @@ class SwarmInstaller(common.Plugin):
 
         return None
 
-    def save(self, title: str=None, temporary: bool=False) -> None:
+    def save(self, title=None, temporary=False):
+        # type: (str, bool) -> None
         pass
 
-    def rollback_checkpoints(self, rollback=1) -> None:
+    def rollback_checkpoints(self, rollback=1):
+        # type: (int) -> None
         pass
 
-    def recovery_routine(self) -> None:
+    def recovery_routine(self):
+        # type: () -> None
         """Revert changes to updated services."""
 
         failed = []
@@ -388,8 +397,10 @@ class SwarmInstaller(common.Plugin):
                 .format(len(failed))
             )
 
-    def config_test(self) -> None:
+    def config_test(self):
+        # type: () -> None
         pass
 
-    def restart(self) -> None:
+    def restart(self):
+        # type: () -> None
         pass
