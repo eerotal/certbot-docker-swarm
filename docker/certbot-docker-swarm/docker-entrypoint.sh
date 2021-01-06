@@ -37,8 +37,8 @@ if [ ! -d "${CB_CONFDIR}" ]; then
     exit 1
 fi
 
-CB_CERTONLY_ARGS="\
-    ${CB_CERTONLY_ARGS} \
+CB_RUN_ARGS="\
+    ${CB_RUN_ARGS} \
     --non-interactive \
     --standalone \
     --agree-tos \
@@ -54,27 +54,27 @@ CB_RENEW_ARGS="\
 # Enable Docker Swarm deployment if needed.
 if [ "${CB_AUTO_DEPLOY}"  = "y" ]; then
     printf "[INFO] Enabling automatic deployment.\n"
-    CB_CERTONLY_ARGS="${CB_CERTONLY_ARGS} --installer=docker-swarm"
+    CB_RUN_ARGS="${CB_RUN_ARGS} --installer=docker-swarm"
 fi
 
 # Use staging Let's Encrypt servers if the user has enabled them.
 if [ "$CB_STAGING" = "y" ]; then
     printf "[WARNING] Using the Let's Encrypt staging server!\n"
-    CB_CERTONLY_ARGS="${CB_CERTONLY_ARGS} --staging"
+    CB_RUN_ARGS="${CB_RUN_ARGS} --staging"
     CB_RENEW_ARGS="${CB_RENEW_ARGS} --staging"
 fi
 
 # Give/don't give the supplied E-mail address to EFF based on user preferences.
 if [ "$CB_EFF_EMAIL" = "y" ]; then
     printf "[INFO] You have chosen to give EFF your E-mail address.\n"
-    CB_CERTONLY_ARGS="${CB_CERTONLY_ARGS} --eff-email"
+    CB_RUN_ARGS="${CB_RUN_ARGS} --eff-email"
 else
-    CB_CERTONLY_ARGS="${CB_CERTONLY_ARGS} --no-eff-email"
+    CB_RUN_ARGS="${CB_RUN_ARGS} --no-eff-email"
 fi
 
 # Run certbot once to make sure certificates exist.
 printf "[INFO] Running certbot.\n"
-/usr/bin/certbot certonly $CB_CERTONLY_ARGS
+/usr/bin/certbot run ${CB_RUN_ARGS}
 
 # Create a CRON entry for renewing certificates.
 printf "[INFO] Installing cron.d entry.\n"

@@ -46,7 +46,7 @@ are described in the table below.
 | `CB_EFF_EMAIL`     | n       | y/n to allow/disallow certbot to give your E-mail to the EFF. |
 | `CB_STAGING`       | n       | y/n to enable/disable use of staging ACME servers.            |
 | `CB_AUTO_DEPLOY`   | n       | y/n to enable/disable automatic Docker Secret deployment.     |
-| `CB_CERTONLY_ARGS` |         | Extra CLI arguments to `certbot certonly`.                    |
+| `CB_RUN_ARGS`      |         | Extra CLI arguments to `certbot run`.                         |
 | `CB_RENEW_ARGS`    |         | Extra CLI arguments to `certbot renew`.                       |
 
 Notes:
@@ -55,7 +55,7 @@ Notes:
    but you must still explicitly define the `CB_AGREE_TOS` variable.
 
 By default `certbot` acquires certificates from Let's Encrypt but you can use other
-ACME servers by passing additional arguments in `CB_CERTONLY_ARGS` and `CB_RENEW_ARGS`.
+ACME servers by passing additional arguments in `CB_RUN_ARGS` and `CB_RENEW_ARGS`.
 
 ### Container paths
 
