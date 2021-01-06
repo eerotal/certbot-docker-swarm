@@ -1,0 +1,35 @@
+#
+# Example Docker Swarm stack for running certbot-docker-swarm. You must also
+# define the following environment variables:
+#
+#  CB_EMAIL: Your Let's Encrypt account E-mail address.
+#  CB_DOMAINS: A comma separated list of domains to acquire certificates for.
+#  CB_AGREE_TOS: Set this to y to agree to the Let's Encrypt TOS.
+#
+
+version: "3.9"
+
+services:
+  certbot-docker-swarm:
+    image: eerotal/certbot-docker-swarm:dev
+
+    environment:
+      CB_AUTO_DEPLOY: "y"
+      CB_STAGING: "y"
+
+    ports:
+      - "80:80"
+
+    volumes:
+      - certbot-docker-swarm-data:/etc/letsencrypt/
+      - /etc/certbot-docker-swarm/:/root/conf/
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+volumes:
+  certbot-docker-swarm-data:
+    name: certbot-docker-swarm-data
