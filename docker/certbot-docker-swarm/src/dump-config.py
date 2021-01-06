@@ -10,60 +10,81 @@ import docker
 from docker.models.services import Service
 import yaml
 from argparse import ArgumentParser
-from typing import Union, Dict
+from typing import Optional, Dict
+
+import logging
+logger = logging.getLogger(__name__)
 
 def get_secrets(service: Service) -> dict:
-    """
-    Get the secret configuration of a service in the docker-compose YAML format.
+    """Get the secret configuration of a service as docker-compose YAML.
 
-    :param service: Service, The Docker service to use.
+    :param Service service: The Docker service to use.
 
     :return: The configuration as a dictionary.
     :rtype: dict
     """
 
     ret = {}
+    secrets = service.attrs.get("Spec") \
+                           .get("TaskTemplate") \
+                           .get("ContainerSpec") \
+                           .get("Secrets")
 
-    secrets = service.attrs["Spec"]["TaskTemplate"]["ContainerSpec"]["Secrets"]
     for s in secrets:
-        ret[s["File"]["Name"]] = {
-            "name": s["SecretName"],
+        ret[s.get("File").get("Name")] = {
+            "name": s.get("SecretName"),
             "external": True
         }
 
     return ret
 
-def main(
-        stack_name: str,
-        compose_version: Union[str, None]=None,
-        outfile: Union[str, None]=None
-) -> None:
-    """
-    Dump secret configuration of a stack as docker-compose YAML.
+def do_secrets_conflict(a: dict, b: dict) -> bool:
+    """Check whether secrets in two dicts returned by get_secrets() conflict.
 
-    :param stack_name: str, None, The stack name to use.
-    :param compose_version: str, None, Optional compose file version to use.
-    :param outfile: str, None: An optional output file.
+    :return: True if secrets conflict, False otherwise.
+    :rtype: bool
+    """
+
+    for key in a:
+        if key in b and a[key]["name"] != b[key]["name"]:
+            return True
+
+    return False
+
+def main(
+    stack_name: str,
+    compose_version: Optional[str]=None,
+    outfile: Optional[str]=None
+) -> None:
+    """Dump secret configuration of a stack as docker-compose YAML.
+
+    :param str stack_name: The stack name to use.
+    :param Optional[str] compose_version: Compose file version to use.
+    :param Optional[str] outfile: Output file. None = stdout.
     """
 
     client = docker.from_env()
     services = client.services.list()
 
+    stack_found = False
     secrets = {}
 
     # Loop over all services in the specified stack and merge secrets
     # into the 'secrets' dictionary.
     for s in services:
-        labels = client.services.list()[0].attrs["Spec"]["Labels"]
-        if "com.docker.stack.namespace" in labels:
-            if labels["com.docker.stack.namespace"] == stack_name:
-                tmp = get_secrets(s)
+        labels = s.attrs.get("Spec").get("Labels")
+        if labels.get("com.docker.stack.namespace", None) == stack_name:
+            stack_found = True
+            tmp = get_secrets(s)
+            if not do_secrets_conflict(secrets, tmp):
+                secrets.update(tmp)
+            else:
+                logger.error("Some services have conflicting secrets.")
+                return 1
 
-                if not set(secrets).intersection(tmp):
-                    secrets.update(tmp)
-                else:
-                    print("[ERROR] Some services have conflicting keys.")
-                    return 1
+    if not stack_found:
+        logger.error("No such stack: {}".format(stack_name))
+        return 1
 
     compose_spec = {"secrets": secrets}
 
@@ -89,7 +110,7 @@ if __name__ == "__main__":
         "--compose-version",
         "-c",
         default=None,
-        help="Compose file version. If not specified, no version is added to output."
+        help="Compose file version. If not specified, no version is added."
     )
     ap.add_argument(
         "--output",
