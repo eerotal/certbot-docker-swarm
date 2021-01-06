@@ -13,6 +13,9 @@ from docker.errors import APIError
 from docker.types.services import SecretReference
 from docker.models.secrets import Secret
 
+import logging
+logger = logging.getLogger(__name__)
+
 @zope.interface.implementer(IInstaller)
 @zope.interface.provider(IPluginFactory)
 class SwarmInstaller(Plugin):
@@ -138,7 +141,7 @@ class SwarmInstaller(Plugin):
         :param str fullchain_path: Path to the fullchain file.
         """
 
-        print("Deploying certificates as Docker Secrets.")
+        logger.info("Deploying certificates as Docker Secrets.")
         self.secret_from_file(domain, "cert", cert_path)
         self.secret_from_file(domain, "key", key_path)
         self.secret_from_file(domain, "chain", chain_path)
@@ -202,13 +205,13 @@ class SwarmInstaller(Plugin):
             try:
                 secret.remove()
             except APIError as e:
-                print(
+                logger.error(
                     "Failed to remove secret {} (id: {}): {}"
                     .format(secret.name, secret.id, str(e))
                 )
                 n -= 1
 
-            print("Removed secret {} (id: {})".format(secret.name, secret.id))
+            logger.info("Removed secret {} (id: {})".format(secret.name, secret.id))
 
         return n
 
@@ -223,7 +226,7 @@ class SwarmInstaller(Plugin):
 
         n = 0
 
-        print("Removing old secrets.")
+        logger.info("Removing old secrets.")
 
         n += self.rm_old_secrets_by_domain_and_name(
             domain,
@@ -246,16 +249,16 @@ class SwarmInstaller(Plugin):
             self.keep_secrets
         )
 
-        print("Removed {} secrets.".format(n))
+        logger.info("Removed {} secrets.".format(n))
 
     def update_services(self):
         # type: () -> None
         """Update Docker Swarm Services to use renewed secrets."""
 
-        print("Updating Docker Swarm Services.")
+        logger.info("Updating Docker Swarm Services.")
 
         for service in self.docker_client.services.list():
-            print(
+            logger.info(
                 "Working in service {} (id: {})"
                 .format(service.name, service.id)
             )
@@ -292,15 +295,15 @@ class SwarmInstaller(Plugin):
                     update_name = tmp.get("SecretName")
                 else:
                     # Substitute managed secrets with renewed ones.
-                    print(
+                    logger.info(
                         "--> Update {}"
                         .format(tmp.get("File").get("Name"))
                     )
-                    print(
+                    logger.info(
                         "----> from {} (id: {})"
                         .format(tmp.get("SecretName"), tmp.get("SecretID"))
                     )
-                    print(
+                    logger.info(
                         "----> to {} (id: {})"
                         .format(renewed_secret.name, renewed_secret.id)
                     )
@@ -330,7 +333,7 @@ class SwarmInstaller(Plugin):
                 ))
 
             if dirty:
-                print("--> Committing changes.")
+                logger.info("--> Committing changes.")
                 self.old_secret_refs[service.id] = old_secret_refs
                 service.update(secrets=secret_refs)
 
@@ -385,7 +388,7 @@ class SwarmInstaller(Plugin):
             try:
                 service.update(secrets=self.old_secret_refs[service_id])
             except APIError as e:
-                print(
+                logger.error(
                     "Failed to rollback service: {}: {}"
                     .format(service.name, str(e))
                 )
