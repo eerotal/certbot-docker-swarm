@@ -11,7 +11,7 @@ version: "3.9"
 
 services:
   certbot-docker-swarm:
-    image: eerotal/certbot-docker-swarm:dev
+    image: eerotal/certbot-docker-swarm:latest
 
     environment:
       CB_AUTO_DEPLOY: "y"
