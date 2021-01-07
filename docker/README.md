@@ -74,7 +74,7 @@ service configuration is automatically updated when new certificates are
 issued. This causes problems if you need to update your stack deployed from
 a docker-compose file as the original configuration still contains references
 to the initial certificates. However, the *certbot-docker-swarm* container
-contains a solution to this problem: `dump-config`. `dump-config` is a Python0
+contains a solution to this problem: `dump-config`. `dump-config` is a Python
 script which you can execute by running
 
 `docker exec CONTAINER_ID dump-config ARGS`

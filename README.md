@@ -26,6 +26,10 @@ plugin by passing `-i docker-swarm` when invoking *certbot*. See the
 [certbot man page](https://certbot.eff.org/docs/man/certbot.html)
 for more info.
 
+*certbot-docker-swarm* also has Docker images on Docker Hub. See
+[the docker/ subdirectory](https://github.com/eerotal/certbot-docker-swarm/tree/master/docker)
+for more info.
+
 ## Swarm Secrets
 
 When certificates are renewed *certbot-docker-swarm* creates Docker Swarm
