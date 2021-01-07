@@ -13,6 +13,8 @@ from docker.errors import APIError
 from docker.types.services import SecretReference
 from docker.models.secrets import Secret
 
+import OpenSSL
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ class SwarmInstaller(Plugin):
     L_VERSION = L_PREFIX + ".version"
     L_DOMAIN = L_PREFIX + ".domain"
     L_NAME = L_PREFIX + ".name"
+    L_FINGERPRINT = L_PREFIX + ".certificate-fingerprint"
 
     SECRET_FORMAT="{domain}_{name}_v{version}"
 
@@ -77,14 +80,33 @@ class SwarmInstaller(Plugin):
                "automatically updates Docker Swarm Services to use" \
                "the renewed secrets."
 
-    def secret_from_file(self, domain, name, filepath):
-        # type: (str, str, str) -> None
+    def secret_from_file(self, domain, name, filepath, fingerprint):
+        # type: (str, str, str, str) -> None
         """ Create a Docker Swarm secret from a certificate file.
 
         :param domain str: The domain the secret authenticates.
         :param name str: The name of the secret.
         :param filepath str: The file path of the secret.
+        :param fingerprint str: The fingerprint of the *certificate*
+                                corresponding to this secret.
         """
+
+        existing_secrets = self.get_secrets_by_domain_and_name(domain, name)
+
+        if len(existing_secrets) != 0:
+            labels = existing_secrets[-1].attrs.get("Spec").get("Labels")
+            if labels.get(SwarmInstaller.L_FINGERPRINT, None) == fingerprint:
+                # Skip deployment if the secret has already been deployed.
+                tmp = SwarmInstaller.SECRET_FORMAT.format(
+                    domain=domain,
+                    name=name,
+                    version=labels.get(SwarmInstaller.L_VERSION, '')
+                )
+                logger.debug(
+                    "{} with fingerprint {} already deployed. Skipping."
+                    .format(tmp, fingerprint)
+                )
+                return
 
         version=int(time.time())
 
@@ -93,6 +115,7 @@ class SwarmInstaller(Plugin):
         labels[SwarmInstaller.L_DOMAIN] = domain
         labels[SwarmInstaller.L_NAME] = name
         labels[SwarmInstaller.L_VERSION] = str(version)
+        labels[SwarmInstaller.L_FINGERPRINT] = fingerprint
 
         name = SwarmInstaller.SECRET_FORMAT.format(
             domain=domain,
@@ -153,18 +176,40 @@ class SwarmInstaller(Plugin):
         :param str fullchain_path: Path to the fullchain file.
         """
 
-        logger.info("Deploying certificates as Docker Secrets.")
-        self.secret_from_file(domain, "cert", cert_path)
-        self.secret_from_file(domain, "key", key_path)
-        self.secret_from_file(domain, "chain", chain_path)
-        self.secret_from_file(domain, "fullchain", fullchain_path)
+        fingerprint = self.get_cert_fingerprint(cert_path)
+
+        logger.info("Deploying certificates for domain: {}".format(domain))
+        self.secret_from_file(domain, "cert", cert_path, fingerprint)
+        self.secret_from_file(domain, "key", key_path, fingerprint)
+        self.secret_from_file(domain, "chain", chain_path, fingerprint)
+        self.secret_from_file(domain, "fullchain", fullchain_path, fingerprint)
 
         self.update_services()
         self.rm_old_secrets_by_domain(domain)
 
+    def get_cert_fingerprint(self, cert_path):
+        # type: (str) -> str
+        """Get a SHA256 fingerprint of a certificate file.
+
+        :param str cert_path: The path to the x509 certificate fil.
+
+        :return: The SHA256 digest of the certificate.
+        :rtype: str
+        """
+
+        with open(cert_path, "rb") as f:
+            cert = OpenSSL.crypto.load_certificate(
+                OpenSSL.crypto.FILETYPE_PEM,
+                f.read()
+            )
+            return cert.digest("sha256").decode("utf-8")
+
     def get_secrets_by_domain_and_name(self, domain, name):
         # type: (str, str) -> List[Secret]
         """Get all secrets of a specific type for a domain.
+
+        The resulting list of secrets is sorted based on the version
+        numbers from lowest to highest.
 
         :param str domain: The domain whose secrets to get.
         :param str name: The name of the secrets to get.
@@ -186,7 +231,15 @@ class SwarmInstaller(Plugin):
                 continue
             ret.append(secret)
 
-        return ret
+        return sorted(
+            ret,
+            key=lambda x: int( \
+                x.attrs \
+                 .get("Spec") \
+                 .get("Labels") \
+                 .get(SwarmInstaller.L_VERSION) \
+            )
+        )
 
     def rm_old_secrets_by_domain_and_name(self, domain, name, keep):
         # type: (str, str, int) -> int
@@ -200,16 +253,9 @@ class SwarmInstaller(Plugin):
         :rtype: int
         """
 
-        remove = sorted(
-            self.get_secrets_by_domain_and_name(domain, name),
-            key=lambda x: int(
-                x.attrs \
-                .get("Spec") \
-                .get("Labels") \
-                .get(SwarmInstaller.L_VERSION) \
-            ),
-            reverse=True
-        )[keep:]
+        remove = list(reversed(
+            self.get_secrets_by_domain_and_name(domain, name)
+        ))[keep:]
 
         n = len(remove)
 

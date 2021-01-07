@@ -20,8 +20,9 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     install_requires=[
-        "docker>=4.4",
-        "certbot>=1.10"
+        "docker>=4.2",
+        "certbot>=1.4",
+        "pyOpenSSL>=19.1"
     ],
     entry_points={
         "certbot.plugins": [

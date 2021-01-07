@@ -13,11 +13,19 @@ ENV CB_CRON_EXPR="0 6 * * *"
 USER root
 WORKDIR /root
 
-RUN apk add --no-cache certbot docker-py py3-yaml && \
-    apk add --no-cache --virtual py3-build-deps git py3-setuptools && \
+RUN apk add --no-cache \
+        certbot \
+        docker-py \
+        py3-yaml \
+        py3-openssl && \
+    apk add --no-cache --virtual py3-build-deps \
+        git \
+        py3-setuptools \
+        py3-pip && \
     git clone https://github.com/eerotal/certbot-docker-swarm.git && \
     cd certbot-docker-swarm && \
-    python3 setup.py install && \
+    python3 setup.py sdist && \
+    pip3 install dist/certbot-docker-swarm* && \
     cd .. && \
     rm -rf certbot-docker-swarm && \
     apk del --purge py3-build-deps
