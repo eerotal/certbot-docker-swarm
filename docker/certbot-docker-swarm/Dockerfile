@@ -8,20 +8,18 @@ ENV CB_STAGING="n"
 ENV CB_AUTO_DEPLOY="n"
 ENV CB_RUN_ARGS=""
 ENV CB_RENEW_ARGS=""
+ENV CB_CRON_EXPR="0 6 * * *"
 
 USER root
 WORKDIR /root
 
-RUN apk add --no-cache \
-        certbot \
-        docker-py \
-        py3-yaml && \
-    apk add --no-cache --virtual py3-build-deps \
-        git \
-        py3-setuptools && \
+RUN apk add --no-cache certbot docker-py py3-yaml && \
+    apk add --no-cache --virtual py3-build-deps git py3-setuptools && \
     git clone https://github.com/eerotal/certbot-docker-swarm.git && \
     cd certbot-docker-swarm && \
     python3 setup.py install && \
+    cd .. && \
+    rm -rf certbot-docker-swarm && \
     apk del --purge py3-build-deps
 
 COPY docker-entrypoint.sh .
@@ -33,4 +31,4 @@ RUN printf "#!/bin/sh\n" > /usr/bin/dump-config && \
     printf "python3 /root/dump-config.py \$@\n" >> /usr/bin/dump-config && \
     chmod +x /usr/bin/dump-config
 
-ENTRYPOINT ["sh", "docker-entrypoint.sh"]
+CMD ["sh", "docker-entrypoint.sh"]

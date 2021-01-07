@@ -10,11 +10,12 @@
 
 set -e
 
-. /root/config.sh
+CERTDIR="/etc/letsencrypt"
+DOCKER_SOCKET="/var/run/docker.sock"
 
 # Make sure the Docker socket is available.
-if [ ! -e "${DOCKER_SOCK}" ]; then
-    printf "[ERROR] You must mount the Docker socket at ${DOCKER_SOCK}.\n"
+if [ ! -e "${DOCKER_SOCKET}" ]; then
+    printf "[ERROR] You must mount the Docker socket at ${DOCKER_SOCKET}.\n"
     exit 1
 fi
 
@@ -32,10 +33,6 @@ if [ -z "${CB_DOMAINS}" ]; then
     printf "[ERROR] You must set your domains in the env var CB_DOMAINS.\n"
     exit 1
 fi
-if [ ! -d "${CB_CONFDIR}" ]; then
-    printf "[ERROR] You must mount a volume at $CB_CONFDIR.\n"
-    exit 1
-fi
 
 CB_RUN_ARGS="\
     ${CB_RUN_ARGS} \
@@ -43,15 +40,11 @@ CB_RUN_ARGS="\
     --standalone \
     --agree-tos \
     --preferred-challenges=http \
-    --email=$CB_EMAIL \
-    --domains=$CB_DOMAINS
+    --email=${CB_EMAIL} \
+    --domains=${CB_DOMAINS}
 "
 
-CB_RENEW_ARGS="\
-    ${CB_RENEW_ARGS} \
-"
-
-# Enable Docker Swarm deployment if needed.
+# Enable Docker Swarm deployment if the user has enabled it.
 if [ "${CB_AUTO_DEPLOY}"  = "y" ]; then
     printf "[INFO] Enabling automatic deployment.\n"
     CB_RUN_ARGS="${CB_RUN_ARGS} --installer=docker-swarm"
@@ -61,7 +54,6 @@ fi
 if [ "$CB_STAGING" = "y" ]; then
     printf "[WARNING] Using the ACME server's staging server!\n"
     CB_RUN_ARGS="${CB_RUN_ARGS} --staging"
-    CB_RENEW_ARGS="${CB_RENEW_ARGS} --staging"
 fi
 
 # Give/don't give the supplied E-mail address to EFF based on user preferences.
@@ -78,7 +70,7 @@ printf "[INFO] Running certbot.\n"
 
 # Create a CRON entry for renewing certificates.
 printf "[INFO] Installing cron.d entry.\n"
-printf "${CRON_EXPR} /usr/bin/certbot renew ${CB_RENEW_ARGS} " \
+printf "${CB_CRON_EXPR} /usr/bin/certbot renew ${CB_RENEW_ARGS} " \
        ">> /proc/1/fd/1 2>&1\n" | crontab -
 
 printf "[INFO] Starting cron.\n"

@@ -1,9 +1,6 @@
 #/usr/bin/env python3
 
-#
-# A Python script for dumping the current secret configuration of a
-# Docker Swarm stack as a Docker Compose YAML file.
-#
+"""Dump Docker Swarm Stack secret configuration as a docker-compose YAML file."""
 
 import sys
 import docker
@@ -104,7 +101,10 @@ def main(
         print(yaml.dump(compose_spec))
 
 if __name__ == "__main__":
-    ap = ArgumentParser()
+    ap = ArgumentParser(
+        description=("Dump Docker Swarm Stack secret configuration as "
+                     "a docker-compose YAML file.")
+    )
     ap.add_argument(
         "stack",
         help="The Docker Swarm stack to use."
