@@ -260,10 +260,10 @@ class SwarmInstaller(Plugin):
         :param Secret fchain: Renewed fullchain Secret.
         """
 
-        renew_candidates = filter(
+        renew_candidates = list(filter(
             lambda x: x is not None,
             [cert, key, chain, fchain]
-        )
+        ))
 
         logger.info("Updating Docker Swarm Services.")
         logger.debug(
@@ -288,12 +288,11 @@ class SwarmInstaller(Plugin):
 
             # Skip services with no secrets.
             if secret_confs is None:
-                logger.debug("No secrets in service.")
+                logger.debug("--> No secrets in service.")
                 continue
 
             for tmp in secret_confs:
                 old = self.docker_client.secrets.get(tmp.get("SecretID"))
-                logger.debug("--> Working on secret {}.".format(old.name))
 
                 # Check whether any of the secrets in renew_candidates
                 # renew the old secret.
