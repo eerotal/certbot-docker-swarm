@@ -16,32 +16,32 @@ class SwarmInstallerUtils:
     def get_secret_managed(cls, s):
         # type: (Secret) -> bool
         """Get the value of the 'managed' secret label."""
-        value = s.attrs.get("Spec").get("Labels").get(cls.L_MANAGED)
+        value = s.attrs.get("Spec").get("Labels").get(cls.L_MANAGED, False)
         return value == "true"
 
     @classmethod
     def get_secret_domain(cls, s):
         # type: (Secret) -> str
         """Get the value of the 'domain' secret label."""
-        return s.attrs.get("Spec").get("Labels").get(cls.L_DOMAIN)
+        return s.attrs.get("Spec").get("Labels").get(cls.L_DOMAIN, None)
 
     @classmethod
     def get_secret_name(cls, s):
         # type: (Secret) -> bool
         """Get the value of the 'name' secret label."""
-        return s.attrs.get("Spec").get("Labels").get(cls.L_NAME)
+        return s.attrs.get("Spec").get("Labels").get(cls.L_NAME, None)
 
     @classmethod
     def get_secret_version(cls, s):
         # type: (Secret) -> str
         """Get the value of the 'version' secret label."""
-        return s.attrs.get("Spec").get("Labels").get(cls.L_VERSION)
+        return s.attrs.get("Spec").get("Labels").get(cls.L_VERSION, None)
 
     @classmethod
     def get_secret_fingerprint(cls, s):
         # type: (Secret) -> str
         """Get the value of the 'fingerprint' secret label."""
-        return s.attrs.get("Spec").get("Labels").get(cls.L_FINGERPRINT)
+        return s.attrs.get("Spec").get("Labels").get(cls.L_FINGERPRINT, None)
 
     @classmethod
     def get_x509_fingerprint(cls, cert_path):

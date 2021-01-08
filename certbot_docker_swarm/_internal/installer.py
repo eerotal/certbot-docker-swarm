@@ -13,8 +13,6 @@ from docker.errors import APIError
 from docker.types.services import SecretReference
 from docker.models.secrets import Secret
 
-import OpenSSL
-
 from .utils import SwarmInstallerUtils
 
 import logging
