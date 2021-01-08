@@ -260,7 +260,10 @@ class SwarmInstaller(Plugin):
         :param Secret fchain: Renewed fullchain Secret.
         """
 
-        renew_candidates = [cert, key, chain, fchain]
+        renew_candidates = filter(
+            lambda x: x is not None,
+            [cert, key, chain, fchain]
+        )
 
         logger.info("Updating Docker Swarm Services.")
         for service in self.docker_client.services.list():
