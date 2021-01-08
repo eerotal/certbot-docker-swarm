@@ -84,7 +84,7 @@ class SwarmInstaller(Plugin):
         :return: The created Secret or None if not created.
         :rtype: Optional[Secret]
 
-        :raised: PluginError if secret creation failed.
+        :raises: PluginError if secret creation failed.
         """
 
         existing_secrets = self.get_secrets(domain, name)
@@ -265,6 +265,10 @@ class SwarmInstaller(Plugin):
             [cert, key, chain, fchain]
         ))
 
+        if len(renew_candidates) == 0:
+            logger.info("No secrets renewed. Skipping service update.")
+            return
+
         logger.info("Updating Docker Swarm Services.")
         logger.debug(
             "Secret renew candidates: {}"
@@ -369,7 +373,10 @@ class SwarmInstaller(Plugin):
 
     def recovery_routine(self):
         # type: () -> None
-        """Revert changes to updated services."""
+        """Revert changes to updated services.
+
+        :raises: PluginError if rollback fails.
+        """
 
         failed = []
         for service_id in self.old_secret_refs:
