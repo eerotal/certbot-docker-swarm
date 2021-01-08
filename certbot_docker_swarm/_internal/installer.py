@@ -266,6 +266,11 @@ class SwarmInstaller(Plugin):
         )
 
         logger.info("Updating Docker Swarm Services.")
+        logger.debug(
+            "Secret renew candidates: {}"
+            .format(", ".join([x.name for x in renew_candidates]))
+        )
+
         for service in self.docker_client.services.list():
             logger.info(
                 "Working in service {} (id: {})"
@@ -283,16 +288,22 @@ class SwarmInstaller(Plugin):
 
             # Skip services with no secrets.
             if secret_confs is None:
+                logger.debug("No secrets in service.")
                 continue
 
             for tmp in secret_confs:
                 old = self.docker_client.secrets.get(tmp.get("SecretID"))
+                logger.debug("--> Working on secret {}.".format(old.name))
 
                 # Check whether any of the secrets in renew_candidates
                 # renew the old secret.
                 update_id = None
                 update_name = None
                 for new in renew_candidates:
+                    logger.debug(
+                        "--> Checking if {} renews {}."
+                        .format(new.name, old.name)
+                    )
                     if SwarmInstallerUtils.secret_renews(old, new):
                         update_id = new.id
                         update_name = new.name
