@@ -15,6 +15,8 @@ from docker.models.secrets import Secret
 
 import OpenSSL
 
+from .utils import SwarmInstallerUtils
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -25,18 +27,8 @@ class SwarmInstaller(Plugin):
 
     description = "Docker Swarm Installer"
 
-    L_PREFIX = "certbot"
-    L_MANAGED = L_PREFIX + ".managed"
-    L_VERSION = L_PREFIX + ".version"
-    L_DOMAIN = L_PREFIX + ".domain"
-    L_NAME = L_PREFIX + ".name"
-    L_FINGERPRINT = L_PREFIX + ".certificate-fingerprint"
-
-    SECRET_FORMAT="{domain}_{name}_v{version}"
-
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
-        self.renewed_secrets = {}
         self.old_secret_refs = {}
 
         info = self.docker_client.info()
@@ -65,7 +57,6 @@ class SwarmInstaller(Plugin):
 
     def prepare(self):
         # type: () -> None
-        # No additional preparation is necessary.
         pass
 
     def more_info(self):
@@ -81,7 +72,7 @@ class SwarmInstaller(Plugin):
                "the renewed secrets."
 
     def secret_from_file(self, domain, name, filepath, fingerprint):
-        # type: (str, str, str, str) -> None
+        # type: (str, str, str, str) -> Optional[Secret]
         """ Create a Docker Swarm secret from a certificate file.
 
         :param domain str: The domain the secret authenticates.
@@ -89,41 +80,44 @@ class SwarmInstaller(Plugin):
         :param filepath str: The file path of the secret.
         :param fingerprint str: The fingerprint of the *certificate*
                                 corresponding to this secret.
+
+        :return: The created Secret or None if not created.
+        :rtype: Optional[Secret]
+
+        :raised: PluginError if secret creation failed.
         """
 
-        existing_secrets = self.get_secrets_by_domain_and_name(domain, name)
+        existing_secrets = self.get_secrets(domain, name)
 
         if len(existing_secrets) != 0:
-            labels = existing_secrets[-1].attrs.get("Spec").get("Labels")
-            if labels.get(SwarmInstaller.L_FINGERPRINT, None) == fingerprint:
-                # Skip deployment if the secret has already been deployed.
-                tmp = SwarmInstaller.SECRET_FORMAT.format(
-                    domain=domain,
-                    name=name,
-                    version=labels.get(SwarmInstaller.L_VERSION, '')
-                )
-                logger.debug(
-                    "{} with fingerprint {} already deployed. Skipping."
-                    .format(tmp, fingerprint)
-                )
-                return
+            newest = existing_secrets[-1]
+            newest_fp = SwarmInstallerUtils.get_secret_fingerprint(newest)
 
-        version=int(time.time())
+            if newest_fp == fingerprint:
+                # Skip deployment if the secret has already been deployed.
+                logger.info(
+                    "{} with fingerprint {} already deployed. Skipping."
+                    .format(newest.name, fingerprint)
+                )
+                return None
+
+        version=str(int(time.time()))
 
         labels = {}
-        labels[SwarmInstaller.L_MANAGED] = "true"
-        labels[SwarmInstaller.L_DOMAIN] = domain
-        labels[SwarmInstaller.L_NAME] = name
-        labels[SwarmInstaller.L_VERSION] = str(version)
-        labels[SwarmInstaller.L_FINGERPRINT] = fingerprint
+        labels[SwarmInstallerUtils.L_MANAGED] = "true"
+        labels[SwarmInstallerUtils.L_DOMAIN] = domain
+        labels[SwarmInstallerUtils.L_NAME] = name
+        labels[SwarmInstallerUtils.L_VERSION] = version
+        labels[SwarmInstallerUtils.L_FINGERPRINT] = fingerprint
 
-        name = SwarmInstaller.SECRET_FORMAT.format(
+        name = SwarmInstallerUtils.SECRET_FORMAT.format(
             domain=domain,
             name=name,
             version=version
         )
 
         with open(filepath, "r") as f:
+            sid = None
             try:
                 sid = self.docker_client.secrets.create(
                     name=name,
@@ -132,40 +126,37 @@ class SwarmInstaller(Plugin):
                 ).id
             except APIError as e:
                 raise PluginError(
-                    "Failed to create Docker Secret {}: {}"
+                    "Failed to create secret {}: {}"
                     .format(name, str(e))
                 )
 
-            self.renewed_secrets[sid] = self.docker_client.secrets.get(sid)
+            logger.info(
+                "Created secret {} from file {}."
+                .format(name, filepath)
+            )
+
+            return self.docker_client.secrets.get(sid)
 
     def get_all_names(self):
         # type: () -> List[str]
         """Get all domain names that have at least one existing secret.
 
-        :rtype: List[str]
+        :rtype: Set[str]
         """
 
-        ret = []
+        f = {}
+        f[SwarmInstallerUtils.L_MANAGED] = lambda x: x == "true"
+        f[SwarmInstallerUtils.L_DOMAIN] = lambda x: x is not None
+        f[SwarmInstallerUtils.L_NAME] = lambda x: x is not None
+        f[SwarmInstallerUtils.L_VERSION] = lambda x: x is not None
+        f[SwarmInstallerUtils.L_FINGERPRINT] = lambda x: x is not None
 
-        for s in self.docker_client.secrets.list():
-            labels = s.attrs.get("Spec").get("Labels")
-            if labels.get(SwarmInstaller.L_MANAGED, None) != "true":
-                continue
+        s = self.docker_client.secrets.list()
+        s = SwarmInstallerUtils.filter_secrets(s, f)
 
-            d = labels.get(SwarmInstaller.L_DOMAIN, None)
-            if d is not None and d not in ret:
-                ret.append(d)
+        return set([SwarmInstallerUtils.get_secret_domain(x) for x in s])
 
-        return ret
-
-    def deploy_cert(
-        self,
-        domain,
-        cert_path,
-        key_path,
-        chain_path,
-        fullchain_path
-    ):
+    def deploy_cert(self, domain, cert_path, key_path, chain_path, fullchain_path):
         # type: (str, str, str, str, str) -> None
         """Create Docker Swarm Secrets from certificates.
 
@@ -176,72 +167,58 @@ class SwarmInstaller(Plugin):
         :param str fullchain_path: Path to the fullchain file.
         """
 
-        fingerprint = self.get_cert_fingerprint(cert_path)
+        fp = SwarmInstallerUtils.get_x509_fingerprint(cert_path)
 
-        logger.info("Deploying certificates for domain: {}".format(domain))
-        self.secret_from_file(domain, "cert", cert_path, fingerprint)
-        self.secret_from_file(domain, "key", key_path, fingerprint)
-        self.secret_from_file(domain, "chain", chain_path, fingerprint)
-        self.secret_from_file(domain, "fullchain", fullchain_path, fingerprint)
+        # Create new secrets.
+        cert = self.secret_from_file(domain, "cert", cert_path, fp)
+        key = self.secret_from_file(domain, "key", key_path, fp)
+        chain = self.secret_from_file(domain, "chain", chain_path, fp)
+        fchain = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
 
-        self.update_services()
-        self.rm_old_secrets_by_domain(domain)
+        # Update services.
+        self.update_services(cert, key, chain, fchain)
 
-    def get_cert_fingerprint(self, cert_path):
-        # type: (str) -> str
-        """Get a SHA256 fingerprint of a certificate file.
+        # Remove old secrets.
+        n = self.rm_oldest_secrets(domain, "cert", self.keep_secrets)
+        n += self.rm_oldest_secrets(domain, "key", self.keep_secrets)
+        n += self.rm_oldest_secrets(domain, "chain", self.keep_secrets)
+        n += self.rm_oldest_secrets(domain, "fullchain", self.keep_secrets)
 
-        :param str cert_path: The path to the x509 certificate fil.
+        logger.info("Removed {} old secrets.".format(n))
 
-        :return: The SHA256 digest of the certificate.
-        :rtype: str
-        """
-
-        with open(cert_path, "rb") as f:
-            cert = OpenSSL.crypto.load_certificate(
-                OpenSSL.crypto.FILETYPE_PEM,
-                f.read()
-            )
-            return cert.digest("sha256").decode("utf-8")
-
-    def get_secrets_by_domain_and_name(self, domain, name):
+    def get_secrets(self, domain, name, reverse=False):
         # type: (str, str) -> List[Secret]
         """Get all secrets of a specific type for a domain.
 
-        The resulting list of secrets is sorted based on the version
-        numbers from lowest to highest.
+        The resulting list of secrets is sorted based on secret
+        versions from lowest to highest.
 
-        :param str domain: The domain whose secrets to get.
-        :param str name: The name of the secrets to get.
+        :param str domain: Secret domain.
+        :param str name: Secret name.
+        :param bool reverse: Sort the Secrets in reverse order.
 
         :return: A list of secrets.
         :rtype: List[Secret]
         """
 
-        ret = []
-        secrets = self.docker_client.secrets.list()
+        f = {}
+        f[SwarmInstallerUtils.L_MANAGED] = lambda x: x == "true"
+        f[SwarmInstallerUtils.L_DOMAIN] = lambda x: x == domain
+        f[SwarmInstallerUtils.L_NAME] = lambda x: x == name
+        f[SwarmInstallerUtils.L_VERSION] = lambda x: x is not None
+        f[SwarmInstallerUtils.L_FINGERPRINT] = lambda x: x is not None
 
-        for secret in secrets:
-            labels = secret.attrs.get("Spec").get("Labels")
-            if labels.get(SwarmInstaller.L_MANAGED, None) != "true":
-                continue
-            if labels.get(SwarmInstaller.L_DOMAIN, None) != domain:
-                continue
-            if labels.get(SwarmInstaller.L_NAME, None) != name:
-                continue
-            ret.append(secret)
-
-        return sorted(
-            ret,
-            key=lambda x: int( \
-                x.attrs \
-                 .get("Spec") \
-                 .get("Labels") \
-                 .get(SwarmInstaller.L_VERSION) \
-            )
+        s = self.docker_client.secrets.list()
+        s = SwarmInstallerUtils.filter_secrets(s, f)
+        s = SwarmInstallerUtils.sort_secrets(
+            s,
+            SwarmInstallerUtils.L_VERSION,
+            reverse
         )
 
-    def rm_old_secrets_by_domain_and_name(self, domain, name, keep):
+        return s
+
+    def rm_oldest_secrets(self, domain, name, keep):
         # type: (str, str, int) -> int
         """Remove oldest secrets of a specific type for a specific domain.
 
@@ -253,10 +230,7 @@ class SwarmInstaller(Plugin):
         :rtype: int
         """
 
-        remove = list(reversed(
-            self.get_secrets_by_domain_and_name(domain, name)
-        ))[keep:]
-
+        remove = self.get_secrets(domain, name, True)[keep:]
         n = len(remove)
 
         for secret in remove:
@@ -269,52 +243,26 @@ class SwarmInstaller(Plugin):
                 )
                 n -= 1
 
-            logger.info("Removed secret {} (id: {})".format(secret.name, secret.id))
+            logger.info(
+                "Removed secret {} (id: {})"
+                .format(secret.name, secret.id)
+            )
 
         return n
 
-    def rm_old_secrets_by_domain(self, domain):
-        # type: (str) -> None
-        """Remove oldest secrets for a domain.
+    def update_services(self, cert, key, chain, fchain):
+        # type: (Secret, Secret, Secret, Secret) -> None
+        """Update Docker Swarm Services to use renewed secrets.
 
-        self.keep_secrets number of newest secrets are kept.
-
-        :param str domain: The domain whose secrets to remove.
+        :param Secret cert: Renewed certificate Secret.
+        :param Secret key: Renewed private key Secret.
+        :param Secret chain: Renewed certificate chain Secret.
+        :param Secret fchain: Renewed fullchain Secret.
         """
 
-        n = 0
-
-        logger.info("Removing old secrets.")
-
-        n += self.rm_old_secrets_by_domain_and_name(
-            domain,
-            "cert",
-            self.keep_secrets
-        )
-        n += self.rm_old_secrets_by_domain_and_name(
-            domain,
-            "key",
-            self.keep_secrets
-        )
-        n += self.rm_old_secrets_by_domain_and_name(
-            domain,
-            "chain",
-            self.keep_secrets
-        )
-        n += self.rm_old_secrets_by_domain_and_name(
-            domain,
-            "fullchain",
-            self.keep_secrets
-        )
-
-        logger.info("Removed {} secrets.".format(n))
-
-    def update_services(self):
-        # type: () -> None
-        """Update Docker Swarm Services to use renewed secrets."""
+        renew_candidates = [cert, key, chain, fchain]
 
         logger.info("Updating Docker Swarm Services.")
-
         for service in self.docker_client.services.list():
             logger.info(
                 "Working in service {} (id: {})"
@@ -322,78 +270,73 @@ class SwarmInstaller(Plugin):
             )
 
             dirty = False
-            secret_refs = []
+            new_secret_refs = []
             old_secret_refs = []
-            secret_conf = service.attrs.get("Spec")\
-                                       .get("TaskTemplate")\
-                                       .get("ContainerSpec")\
+
+            secret_confs = service.attrs.get("Spec") \
+                                       .get("TaskTemplate") \
+                                       .get("ContainerSpec") \
                                        .get("Secrets")
 
-            if secret_conf is None:
-                # Skip services with no secrets.
+            # Skip services with no secrets.
+            if secret_confs is None:
                 continue
 
-            for tmp in secret_conf:
-                secret = self.docker_client.secrets.get(tmp.get("SecretID"))
-                labels = secret.attrs.get("Spec").get("Labels")
+            for tmp in secret_confs:
+                old = self.docker_client.secrets.get(tmp.get("SecretID"))
 
-                # Get the renewed secret corresponding to the
-                # old secret defined in the service spec.
-                managed = labels.get(SwarmInstaller.L_MANAGED, None)
-                domain = labels.get(SwarmInstaller.L_DOMAIN, None)
-                name = labels.get(SwarmInstaller.L_NAME, None)
-                renewed_secret = self.get_renewed_secret(domain, name)
-
+                # Check whether any of the secrets in renew_candidates
+                # renew the old secret.
                 update_id = None
                 update_name = None
+                for new in renew_candidates:
+                    if SwarmInstallerUtils.secret_renews(old, new):
+                        update_id = new.id
+                        update_name = new.name
+                        dirty = True
 
-                if managed != "true" or renewed_secret is None:
-                    # Add non-managed and non-renewed secrets as-is.
+                        logger.info(
+                            "--> Update {}: {} -> {}"
+                            .format(
+                                tmp.get("File").get("Name"),
+                                tmp.get("SecretName"),
+                                new.name
+                            )
+                        )
+
+                        break
+
+                if update_id is None:
+                    # None of the secrets in renew_candidates renew
+                    # the old secret -> use the old secret as-is.
                     update_id = tmp.get("SecretID")
                     update_name = tmp.get("SecretName")
-                else:
-                    # Substitute managed secrets with renewed ones.
-                    logger.info(
-                        "--> Update {}"
-                        .format(tmp.get("File").get("Name"))
-                    )
-                    logger.info(
-                        "----> from {} (id: {})"
-                        .format(tmp.get("SecretName"), tmp.get("SecretID"))
-                    )
-                    logger.info(
-                        "----> to {} (id: {})"
-                        .format(renewed_secret.name, renewed_secret.id)
-                    )
 
-                    update_id = renewed_secret.id
-                    update_name = renewed_secret.name
-                    dirty = True
+                fpar = [
+                    tmp.get("File").get("Name"),
+                    tmp.get("File").get("UID"),
+                    tmp.get("File").get("GID"),
+                    tmp.get("File").get("Mode")
+                ]
 
                 # Store old SecretReference.
                 old_secret_refs.append(SecretReference(
                     tmp.get("SecretID"),
                     tmp.get("SecretName"),
-                    tmp.get("File").get("Name"),
-                    tmp.get("File").get("UID"),
-                    tmp.get("File").get("GID"),
-                    tmp.get("File").get("Mode")
+                    *fpar
                 ))
 
                 # Create new SecretReference.
-                secret_refs.append(SecretReference(
+                new_secret_refs.append(SecretReference(
                     update_id,
                     update_name,
-                    tmp.get("File").get("Name"),
-                    tmp.get("File").get("UID"),
-                    tmp.get("File").get("GID"),
-                    tmp.get("File").get("Mode")
+                    *fpar
                 ))
 
             if dirty:
                 logger.info("--> Committing changes.")
                 self.old_secret_refs[service.id] = old_secret_refs
-                service.update(secrets=secret_refs)
+                service.update(secrets=new_secret_refs)
 
     def enhance(self, domain, enhancement, options=None):
         # type: (str, str, dict) -> None
@@ -402,30 +345,6 @@ class SwarmInstaller(Plugin):
     def supported_enhancements(self):
         # type: () -> List[str]
         return []
-
-    def get_renewed_secret(self, domain, name):
-        # type: (str, str) -> Optional[Secret]
-        """Get a renewed secret by domain and name.
-
-        :param str domain: The domain name the secret authenticates.
-        :param str name: The name of the underlying secret, eg. chain, key, ...
-
-        :return: The Secret object or None if not found.
-        :rtype: Optional[Secret]
-        """
-
-        for secret_id in self.renewed_secrets:
-            secret = self.renewed_secrets[secret_id]
-            labels = secret.attrs.get("Spec").get("Labels")
-
-            if labels.get(SwarmInstaller.L_DOMAIN, None) != domain:
-                continue
-            if labels.get(SwarmInstaller.L_NAME, None) != name:
-                continue
-
-            return secret
-
-        return None
 
     def save(self, title=None, temporary=False):
         # type: (str, bool) -> None
