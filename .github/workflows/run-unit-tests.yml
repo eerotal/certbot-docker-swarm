@@ -24,6 +24,6 @@ jobs:
         run: |
           python3 setup.py install
 
-      - Run unit tests
+      - name: Run unit tests
         run: |
           pytest
