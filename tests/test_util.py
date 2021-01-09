@@ -2,6 +2,7 @@
 
 import pytest
 import time
+import os
 
 from docker.models.secrets import Secret
 from certbot_docker_swarm._internal.utils import SwarmInstallerUtils as utils
@@ -82,8 +83,13 @@ class TestSwarmInstallerUtils:
         assert utils.get_secret_fingerprint(c) == "AA:DD"
         assert utils.get_secret_fingerprint(d) is None
 
-    def test_get_x509_fingerprint(self, secrets):
-        pass
+    def test_get_x509_fingerprint(self):
+        fingerprint=("D7:5C:60:9E:BE:8F:78:67:1D:0E:16:98:80:96:3A:B5:"
+                     "FF:88:A7:94:19:75:6D:11:A0:3E:1F:33:21:90:54:7F")
+
+        assert utils.get_x509_fingerprint(
+            os.path.dirname(__file__) + "/assets/cert.pem"
+        ) == fingerprint
 
     def test_filter_secrets(self, secrets):
         a, b, c, d = [secrets[x] for x in sorted(secrets)]
