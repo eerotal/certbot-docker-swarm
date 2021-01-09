@@ -2,8 +2,9 @@
 
 import OpenSSL
 
+
 class SwarmInstallerUtils:
-    SECRET_FORMAT="{domain}_{name}_v{version}"
+    SECRET_FORMAT = "{domain}_{name}_v{version}"
 
     L_PREFIX = "certbot"
     L_MANAGED = L_PREFIX + ".managed"
@@ -99,7 +100,7 @@ class SwarmInstallerUtils:
         :param List[Secret] secrets: A list of Secrets to sort.
         :param str label: The name of the label to use for sorting.
         :param bool reverse: Sort the list in reverse order.
-        :param Any default: The default value to use if the label doesn't exist.
+        :param Any default: Default value to use if the label doesn't exist.
 
         :return: A sorted list of Secrets.
         :rtype: List[Secret]
@@ -107,7 +108,10 @@ class SwarmInstallerUtils:
 
         return sorted(
             secrets,
-            key=lambda x: x.attrs.get("Spec").get("Labels").get(label, default),
+            key=lambda x: x.attrs
+                           .get("Spec")
+                           .get("Labels")
+                           .get(label, default),
             reverse=reverse
         )
 
@@ -116,8 +120,9 @@ class SwarmInstallerUtils:
         # type: (Secret, Secret) -> bool
         """Check whether a Secret renews another Secret."""
 
-        return cls.get_secret_managed(old) and \
-               cls.get_secret_managed(new) and \
-               cls.get_secret_domain(old) == cls.get_secret_domain(new) and \
-               cls.get_secret_name(old) == cls.get_secret_name(new) and \
-               int(cls.get_secret_version(old)) < int(cls.get_secret_version(new))
+        return \
+            cls.get_secret_managed(old) and \
+            cls.get_secret_managed(new) and \
+            cls.get_secret_domain(old) == cls.get_secret_domain(new) and \
+            cls.get_secret_name(old) == cls.get_secret_name(new) and \
+            int(cls.get_secret_version(old)) < int(cls.get_secret_version(new))

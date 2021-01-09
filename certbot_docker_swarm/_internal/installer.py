@@ -1,6 +1,8 @@
 """Docker Swarm installer"""
 
 import time
+import logging
+
 import zope.interface
 from acme.magic_typing import List, Optional
 
@@ -9,15 +11,14 @@ from certbot.plugins.common import Plugin
 from certbot.errors import PluginError
 
 import docker
-from docker.client import DockerClient
 from docker.errors import APIError
 from docker.types.services import SecretReference
 from docker.models.secrets import Secret
 
 from .utils import SwarmInstallerUtils
 
-import logging
 logger = logging.getLogger(__name__)
+
 
 @zope.interface.implementer(IInstaller)
 @zope.interface.provider(IPluginFactory)
@@ -108,7 +109,7 @@ class SwarmInstaller(Plugin):
                 )
                 return None
 
-        version=str(int(time.time()))
+        version = str(int(time.time()))
 
         labels = {}
         labels[SwarmInstallerUtils.L_MANAGED] = "true"
@@ -163,7 +164,14 @@ class SwarmInstaller(Plugin):
 
         return set([SwarmInstallerUtils.get_secret_domain(x) for x in s])
 
-    def deploy_cert(self, domain, cert_path, key_path, chain_path, fullchain_path):
+    def deploy_cert(
+        self,
+        domain,
+        cert_path,
+        key_path,
+        chain_path,
+        fullchain_path
+    ):
         # type: (str, str, str, str, str) -> None
         """Create Docker Swarm Secrets from certificates.
 
@@ -293,9 +301,9 @@ class SwarmInstaller(Plugin):
             old_secret_refs = []
 
             secret_confs = service.attrs.get("Spec") \
-                                       .get("TaskTemplate") \
-                                       .get("ContainerSpec") \
-                                       .get("Secrets")
+                                        .get("TaskTemplate") \
+                                        .get("ContainerSpec") \
+                                        .get("Secrets")
 
             # Skip services with no secrets.
             if secret_confs is None:
