@@ -1,8 +1,8 @@
 certbot-docker-swarm - Certbot plugin for Docker Swarm Secrets
 --------------------------------------------------------------
 
-![Build and push to Docker Hub badge](https://github.com/eerotal/certbot-docker-swarm/workflows/Build%20Docker%20images/badge.svg)
-![Unit tests badge](https://github.com/eerotal/certbot-docker-swarm/workflows/Unit%20tests/badge.svg)
+![Build and push to Docker Hub badge](https://github.com/eerotal/certbot-docker-swarm/workflows/Deployment/badge.svg)
+![Unit tests badge](https://github.com/eerotal/certbot-docker-swarm/workflows/Tests/badge.svg)
 
 *certbot-docker-swarm* is a [certbot](https://certbot.eff.org/) installer
 plugin that can be used to automatically deploy TLS certificates as Docker
