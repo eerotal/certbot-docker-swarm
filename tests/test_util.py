@@ -24,7 +24,7 @@ class TestSwarmInstallerUtils:
             b.attrs["Spec"]["Name"] = "b"
             b.attrs["Spec"]["Labels"][utils.L_MANAGED] = "true"
             b.attrs["Spec"]["Labels"][utils.L_DOMAIN] = "2.example.com"
-            b.attrs["Spec"]["Labels"][utils.L_NAME] = "cert"
+            b.attrs["Spec"]["Labels"][utils.L_NAME] = "chain"
             b.attrs["Spec"]["Labels"][utils.L_VERSION] = "1"
             b.attrs["Spec"]["Labels"][utils.L_FINGERPRINT] = "AA:CC"
 
@@ -63,7 +63,7 @@ class TestSwarmInstallerUtils:
         a, b, c, d = [secrets[x] for x in sorted(secrets)]
 
         assert utils.get_secret_name(a) == "cert"
-        assert utils.get_secret_name(b) == "cert"
+        assert utils.get_secret_name(b) == "chain"
         assert utils.get_secret_name(c) == "chain"
         assert utils.get_secret_name(d) is None
 
@@ -98,18 +98,17 @@ class TestSwarmInstallerUtils:
         f[utils.L_MANAGED] = lambda x: x == "true"
         f[utils.L_DOMAIN] = lambda x: x == "2.example.com"
         filtered = utils.filter_secrets([a, b, c, d], f)
-        assert len(filtered) == 2
-        assert filtered[0] == b
-        assert filtered[1] == c
+        assert filtered == [b, c]
 
-        f[utils.L_NAME] = lambda x: x == "chain"
+        f[utils.L_MANAGED] = lambda x: x == "false"
+        f[utils.L_DOMAIN] = lambda x: x == "1.example.com"
+        f[utils.L_NAME] = lambda x: x == "cert"
         filtered = utils.filter_secrets([a, b, c, d], f)
-        assert len(filtered) == 1
-        assert filtered[0] == c
+        assert filtered == [a]
 
         f[utils.L_NAME] = lambda x: x == "fullchain"
         filtered = utils.filter_secrets([a, b, c, d], f)
-        assert len(filtered) == 0
+        assert filtered == []
 
     def test_sort_secrets(self, secrets):
         a, b, c, d = [secrets[x] for x in sorted(secrets)]
@@ -121,7 +120,6 @@ class TestSwarmInstallerUtils:
             default=None
         )
         assert res == [a, b, c]
-
 
     def test_sort_secrets_reverse(self, secrets):
         a, b, c, d = [secrets[x] for x in sorted(secrets)]
@@ -153,3 +151,19 @@ class TestSwarmInstallerUtils:
             default="-1"
         )
         assert res == [d, a, b, c]
+
+    def test_secret_renews(self, secrets):
+        a, b, c, d = [secrets[x] for x in sorted(secrets)]
+
+        assert utils.secret_renews(a, b) is False
+        assert utils.secret_renews(a, c) is False
+        assert utils.secret_renews(a, d) is False
+        assert utils.secret_renews(b, a) is False
+        assert utils.secret_renews(b, c) is True
+        assert utils.secret_renews(b, d) is False
+        assert utils.secret_renews(c, a) is False
+        assert utils.secret_renews(c, b) is False
+        assert utils.secret_renews(c, d) is False
+        assert utils.secret_renews(d, a) is False
+        assert utils.secret_renews(d, b) is False
+        assert utils.secret_renews(d, c) is False
