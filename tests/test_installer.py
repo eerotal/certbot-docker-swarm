@@ -67,7 +67,7 @@ class SecretCollectionMock:
                 }
             }),
             Secret(attrs={
-                'ID': 'a',
+                'ID': 'c',
                 'Spec': {
                     'Name': 'example.com_cert_v0',
                     'Labels': {
@@ -80,7 +80,7 @@ class SecretCollectionMock:
                 }
             }),
             Secret(attrs={
-                'ID': 'b',
+                'ID': 'd',
                 'Spec': {
                     'Name': 'example.com_chain_v0',
                     'Labels': {
@@ -89,6 +89,32 @@ class SecretCollectionMock:
                         'certbot.managed': 'true',
                         'certbot.name': 'chain',
                         'certbot.version': '0'
+                    }
+                }
+            }),
+            Secret(attrs={
+                'ID': 'e',
+                'Spec': {
+                    'Name': 'example.com_cert_v1',
+                    'Labels': {
+                        'certbot.certificate-fingerprint': 'AA:BB',
+                        'certbot.domain': '2.example.com',
+                        'certbot.managed': 'true',
+                        'certbot.name': 'cert',
+                        'certbot.version': '1'
+                    }
+                }
+            }),
+            Secret(attrs={
+                'ID': 'f',
+                'Spec': {
+                    'Name': 'example.com_chain_v1',
+                    'Labels': {
+                        'certbot.certificate-fingerprint': 'AA:BB',
+                        'certbot.domain': '2.example.com',
+                        'certbot.managed': 'true',
+                        'certbot.name': 'chain',
+                        'certbot.version': '1'
                     }
                 }
             })
@@ -173,8 +199,40 @@ class TestSwarmInstaller:
     def test_deploy_cert(self):
         pass
 
-    def test_get_secrets(self):
-        pass
+    @patch.object(SecretCollection, "list", SecretCollectionMock.list)
+    def test_get_secrets(self, installer):
+        tmp = installer.get_secrets("2.example.com", "cert", reverse=False)
+        assert len(tmp) == 2
+        assert tmp[0].id == "c"
+        assert tmp[1].id == "e"
+
+        tmp = installer.get_secrets("1.example.com", "chain", reverse=False)
+        assert len(tmp) == 1
+        assert tmp[0].id == "b"
+
+        tmp = installer.get_secrets("1.example.com", "fullchain", reverse=False)
+        assert tmp == []
+
+        tmp = installer.get_secrets("3.example.com", "cert", reverse=False)
+        assert tmp == []
+
+
+    @patch.object(SecretCollection, "list", SecretCollectionMock.list)
+    def test_get_secrets_reverse(self, installer):
+        tmp = installer.get_secrets("2.example.com", "cert", reverse=True)
+        assert len(tmp) == 2
+        assert tmp[0].id == "e"
+        assert tmp[1].id == "c"
+
+        tmp = installer.get_secrets("1.example.com", "chain", reverse=True)
+        assert len(tmp) == 1
+        assert tmp[0].id == "b"
+
+        tmp = installer.get_secrets("1.example.com", "fullchain", reverse=True)
+        assert tmp == []
+
+        tmp = installer.get_secrets("3.example.com", "cert", reverse=True)
+        assert tmp == []
 
     def test_rm_oldest_secrets(self):
         pass
