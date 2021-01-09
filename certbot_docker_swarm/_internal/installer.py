@@ -9,6 +9,7 @@ from certbot.plugins.common import Plugin
 from certbot.errors import PluginError
 
 import docker
+from docker.client import DockerClient
 from docker.errors import APIError
 from docker.types.services import SecretReference
 from docker.models.secrets import Secret
@@ -26,7 +27,15 @@ class SwarmInstaller(Plugin):
     description = "Docker Swarm Installer"
 
     def __init__(self, *args, **kwargs):
-        self.docker_client = docker.from_env()
+        if "docker_client" in kwargs:
+            # Use DockerClient supplied by caller if it exists.
+            # This is mainly used for testing.
+            self.docker_client = kwargs["docker_client"]
+            del kwargs["docker_client"]
+        else:
+            # Normally create DockerClient from env.
+            self.docker_client = docker.from_env()
+
         self.old_secret_refs = {}
 
         info = self.docker_client.info()
