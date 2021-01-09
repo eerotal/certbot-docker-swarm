@@ -78,6 +78,9 @@ class SwarmInstallerUtils:
         """
 
         def filter_func(x):
+            if len(filter_dict) == 0:
+                return False
+
             for label_name in filter_dict:
                 label_value = x.attrs \
                                .get("Spec") \

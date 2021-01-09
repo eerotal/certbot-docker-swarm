@@ -95,6 +95,9 @@ class TestSwarmInstallerUtils:
         a, b, c, d = [secrets[x] for x in sorted(secrets)]
 
         f = {}
+        filtered = utils.filter_secrets([a, b, c, d], f)
+        assert filtered == []
+
         f[utils.L_MANAGED] = lambda x: x == "true"
         f[utils.L_DOMAIN] = lambda x: x == "2.example.com"
         filtered = utils.filter_secrets([a, b, c, d], f)
