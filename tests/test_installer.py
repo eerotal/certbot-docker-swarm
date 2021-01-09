@@ -78,3 +78,54 @@ class TestSwarmInstaller:
                                       .get("Spec") \
                                       .get("Orchestration") \
                                       .get("TaskHistoryRetentionLimit")
+
+    def test_prepare(self, docker_client):
+        pass
+
+    @patch.object(NodeCollection, "get", NodeCollectionMock.get)
+    @patch.object(DockerClient, "info", DockerClientMock.info)
+    def test_more_info(self, docker_client):
+        s = SwarmInstaller({}, "docker-swarm", docker_client=docker_client)
+        assert type(s.more_info()) is str
+
+    def test_secret_from_file(self):
+        pass
+
+    def test_get_all_names(self):
+        pass
+
+    def test_deploy_cert(self):
+        pass
+
+    def test_get_secrets(self):
+        pass
+
+    def test_rm_oldest_secrets(self):
+        pass
+
+    def test_update_services(self):
+        pass
+
+    def test_enhance(self):
+        pass
+
+    @patch.object(NodeCollection, "get", NodeCollectionMock.get)
+    @patch.object(DockerClient, "info", DockerClientMock.info)
+    def test_supported_enhancements(self, docker_client):
+        s = SwarmInstaller({}, "docker-swarm", docker_client=docker_client)
+        assert s.supported_enhancements() == []
+
+    def test_save(self):
+        pass
+
+    def test_rollback_checkpoints(self):
+        pass
+
+    def test_recovery_routine(self):
+        pass
+
+    def test_config_test(self):
+        pass
+
+    def test_restart(self):
+        pass
