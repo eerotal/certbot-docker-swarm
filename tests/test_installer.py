@@ -2,7 +2,6 @@
 
 import pytest
 from mock import patch
-from types import SimpleNamespace
 
 from certbot.errors import PluginError
 from docker.client import DockerClient
@@ -10,16 +9,18 @@ from docker.models.nodes import NodeCollection
 
 from certbot_docker_swarm._internal.installer import SwarmInstaller
 
+class NamespaceMock:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
 class NodeCollectionMock:
     @classmethod
     def get(cls, *args, **kwargs):
-        ns = SimpleNamespace()
-        ns.attrs = {
+        return NamespaceMock(attrs={
             "Spec": {
                 "Role": "manager"
             }
-        }
-        return ns
+        })
 
     @classmethod
     def get_not_manager(cls, *args, **kwargs):
