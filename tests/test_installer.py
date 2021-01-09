@@ -43,10 +43,10 @@ class SecretCollectionMock:
             Secret(attrs={
                 'ID': 'a',
                 'Spec': {
-                    'Name': 'exameple.com_cert_v0',
+                    'Name': 'example.com_cert_v0',
                     'Labels': {
                         'certbot.certificate-fingerprint': 'AA:BB',
-                        'certbot.domain': 'example.com',
+                        'certbot.domain': '1.example.com',
                         'certbot.managed': 'true',
                         'certbot.name': 'cert',
                         'certbot.version': '0'
@@ -56,10 +56,36 @@ class SecretCollectionMock:
             Secret(attrs={
                 'ID': 'b',
                 'Spec': {
-                    'Name': 'exameple.com_chain_v0',
+                    'Name': 'example.com_chain_v0',
                     'Labels': {
                         'certbot.certificate-fingerprint': 'AA:BB',
-                        'certbot.domain': 'example.com',
+                        'certbot.domain': '1.example.com',
+                        'certbot.managed': 'true',
+                        'certbot.name': 'chain',
+                        'certbot.version': '0'
+                    }
+                }
+            }),
+            Secret(attrs={
+                'ID': 'a',
+                'Spec': {
+                    'Name': 'example.com_cert_v0',
+                    'Labels': {
+                        'certbot.certificate-fingerprint': 'AA:BB',
+                        'certbot.domain': '2.example.com',
+                        'certbot.managed': 'true',
+                        'certbot.name': 'cert',
+                        'certbot.version': '0'
+                    }
+                }
+            }),
+            Secret(attrs={
+                'ID': 'b',
+                'Spec': {
+                    'Name': 'example.com_chain_v0',
+                    'Labels': {
+                        'certbot.certificate-fingerprint': 'AA:BB',
+                        'certbot.domain': '2.example.com',
                         'certbot.managed': 'true',
                         'certbot.name': 'chain',
                         'certbot.version': '0'
@@ -141,7 +167,8 @@ class TestSwarmInstaller:
 
     @patch.object(SecretCollection, "list", SecretCollectionMock.list)
     def test_get_all_names(self, installer):
-        assert installer.get_all_names() == set(["example.com"])
+        tmp = installer.get_all_names()
+        assert tmp == set(["1.example.com", "2.example.com"])
 
     def test_deploy_cert(self):
         pass
