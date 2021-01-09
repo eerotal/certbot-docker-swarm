@@ -79,20 +79,17 @@ class SwarmInstaller(Plugin):
                "automatically updates Docker Swarm Services to use" \
                "the renewed secrets."
 
-    def secret_from_file(self, domain, name, filepath, fingerprint):
-        # type: (str, str, str, str) -> Optional[Secret]
-        """ Create a Docker Swarm secret from a certificate file.
+    def is_secret_deployed(self, domain, name, fingerprint):
+        # type: (str, str, str) -> bool
+        """Check whether a secret is already deployed based on fingerprints.
 
         :param domain str: The domain the secret authenticates.
         :param name str: The name of the secret.
-        :param filepath str: The file path of the secret.
         :param fingerprint str: The fingerprint of the *certificate*
                                 corresponding to this secret.
 
-        :return: The created Secret or None if not created.
-        :rtype: Optional[Secret]
-
-        :raises: PluginError if secret creation failed.
+        :return: True if deployed, False otherwise.
+        :rtype: bool
         """
 
         existing_secrets = self.get_secrets(domain, name)
@@ -107,7 +104,25 @@ class SwarmInstaller(Plugin):
                     "{} with fingerprint {} already deployed. Skipping."
                     .format(newest.name, fingerprint)
                 )
-                return None
+                return True
+
+        return False
+
+    def secret_from_file(self, domain, name, filepath, fingerprint):
+        # type: (str, str, str, str) -> Secret
+        """ Create a Docker Swarm secret from a certificate file.
+
+        :param domain str: The domain the secret authenticates.
+        :param name str: The name of the secret.
+        :param filepath str: The file path of the secret.
+        :param fingerprint str: The fingerprint of the *certificate*
+                                corresponding to this secret.
+
+        :return: The created Secret.
+        :rtype: Secret
+
+        :raises: PluginError if secret creation failed.
+        """
 
         version = str(int(time.time()))
 
@@ -184,11 +199,20 @@ class SwarmInstaller(Plugin):
 
         fp = SwarmInstallerUtils.get_x509_fingerprint(cert_path)
 
+        cert = None
+        key = None
+        chain = None
+        fullchain = None
+
         # Create new secrets.
-        cert = self.secret_from_file(domain, "cert", cert_path, fp)
-        key = self.secret_from_file(domain, "key", key_path, fp)
-        chain = self.secret_from_file(domain, "chain", chain_path, fp)
-        fchain = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
+        if not is_secret_deployed(domain, "cert", fp):
+            cert = self.secret_from_file(domain, "cert", cert_path, fp)
+        if not is_secret_deployed(domain, "key", fp):
+            key = self.secret_from_file(domain, "key", key_path, fp)
+        if not is_secret_deployed(domain, "chain", fp):
+            chain = self.secret_from_file(domain, "chain", chain_path, fp)
+        if not is_secret_deployed(domain, "fullchain", fp):
+            fchain = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
 
         # Update services.
         self.update_services(cert, key, chain, fchain)
