@@ -116,4 +116,5 @@ class SwarmInstallerUtils:
         return cls.get_secret_managed(old) and \
                cls.get_secret_managed(new) and \
                cls.get_secret_domain(old) == cls.get_secret_domain(new) and \
-               cls.get_secret_name(old) == cls.get_secret_name(new)
+               cls.get_secret_name(old) == cls.get_secret_name(new) and \
+               int(cls.get_secret_version(old)) < int(cls.get_secret_version(new))
