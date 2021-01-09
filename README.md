@@ -123,6 +123,41 @@ dependencies from PyPI:
 
 These are, however, automatically installed by the `setup.py` script.
 
+## Development
+
+### Building development Docker images
+
+All Docker related configuration and source files are in `docker/`. You can
+run the `docker/build.sh` script to build a development Docker image tagged
+with `:dev`. Note that the included *Dockerfile* clones the
+*certbot-docker-swarm* sources from the remote *git* repository, which means
+your local changes won't be included in the built images by default.
+
+### Running tests
+
+*certbot-docker-swarm* uses [tox](https://tox.readthedocs.io/en/latest/) to
+automate linting, unit tests etc. Install *tox* with
+
+`pip install tox`
+
+By default *tox* tries to use all the environments defined in `tox.ini`, ie.
+`lint, py27, py35, py36, py37, py38, py39`. If you only want to lint the
+codebase against PEP-8 you can run
+
+`python3 -m tox -e lint`
+
+To run unit tests using the Python binary in your path run
+
+`python3 -m tox -e py`
+
+You can also use `python` in place of `python3` if both are in your *PATH*.
+
+### CI/CD pipeline
+
+*certbot-docker-swarm* uses GitHub Actions for its CI/CD pipeline. The
+pipeline includes linting and running tests against all commits as well as
+deploying released Docker images to Docker Hub.
+
 ## License
 
 *certbot-docker-swarm* is licensed under the BSD 3-clause license. See
