@@ -35,6 +35,7 @@ class NodeCollectionMock:
         return tmp
 
 class SecretCollectionMock:
+    @classmethod
     def list(cls):
         ret = []
 
