@@ -1,9 +1,14 @@
+# Ignore emacs generated files.
 \#*
 .#*
-.venv
-build
-*.egg-info
-dist
-*.pyc
-env.yml
+
+# Ignore build system files.
 .mypy_cache
+.tox
+build
+dist
+*.egg-info
+*.pyc
+
+# Ignore local config files.
+env.yml

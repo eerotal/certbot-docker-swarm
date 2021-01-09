@@ -18,7 +18,7 @@ setuptools.setup(
         "License :: OSI Approved :: BSD 3-clause license",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires='>=2.7',
     install_requires=[
         "docker>=4.2",
         "certbot>=1.4",
