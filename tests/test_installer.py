@@ -1,7 +1,7 @@
 """Tests for SwarmInstaller."""
 
 import pytest
-from unittest.mock import patch
+from mock import patch
 from types import SimpleNamespace
 
 from certbot.errors import PluginError
