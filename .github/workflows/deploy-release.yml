@@ -18,7 +18,7 @@ jobs:
         uses: crazy-max/ghaction-docker-meta@v1
         with:
           images: eerotal/certbot-docker-swarm
-          tag-semver: |y
+          tag-semver: |
             {{version}}
             {{major}}.{{minor}}
 
