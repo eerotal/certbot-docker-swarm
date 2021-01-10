@@ -328,6 +328,7 @@ class TestSwarmInstaller:
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_rm_oldest_secrets(self, installer):
         removed = set([])
+
         def record_removed(self, removed=removed):
             removed.add(self.id)
 
