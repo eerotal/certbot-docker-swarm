@@ -5,7 +5,7 @@ import time
 import pytest
 
 import mock
-from mock import patch, MagicMock, PropertyMock
+from mock import patch, call, MagicMock, DEFAULT
 
 from certbot.errors import PluginError
 from docker.client import DockerClient
@@ -288,8 +288,110 @@ class TestSwarmInstaller:
         tmp = installer.get_all_names()
         assert tmp == set(["1.example.com", "2.example.com"])
 
-    def test_deploy_cert(self):
-        pass
+    def test_deploy_cert(self, installer):
+        # Certificate path.
+        cp = os.path.join(os.path.dirname(__file__), "assets", "cert.pem")
+
+        # Certificate fingerprint.
+        cf = ("D7:5C:60:9E:BE:8F:78:67:1D:0E:16:98:80:96:3A:B5:"
+              "FF:88:A7:94:19:75:6D:11:A0:3E:1F:33:21:90:54:7F")
+
+        # This is the "keep" argument we expect is passed to
+        # SwarmInstaller.rm_oldest_secrets().
+        keep = DockerClientDefs.info() \
+                               .get("Swarm") \
+                               .get("Cluster") \
+                               .get("Spec") \
+                               .get("Orchestration") \
+                               .get("TaskHistoryRetentionLimit")
+
+        with patch.multiple(
+            SwarmInstaller,
+            is_secret_deployed=DEFAULT,
+            secret_from_file=DEFAULT,
+            update_services=DEFAULT,
+            rm_oldest_secrets=DEFAULT
+        ) as values:
+            mock_is_deployed = values["is_secret_deployed"]
+            mock_rm = values["rm_oldest_secrets"]
+            mock_update = values["update_services"]
+            mock_new = values["secret_from_file"]
+
+            # Make sure all Secrets are considered not deployed.
+            mock_is_deployed.return_value = False
+
+            # Let's just deploy the certificate to all Secrets since
+            # the Secret contents don't really matter anyway.
+            installer.deploy_cert("1.example.com", cp, cp, cp, cp)
+
+            # Assert that new Secrtes were created.
+            mock_new.assert_has_calls([
+                call("1.example.com", "cert", cp, cf),
+                call("1.example.com", "key", cp, cf),
+                call("1.example.com", "chain", cp, cf),
+                call("1.example.com", "fullchain", cp, cf),
+            ], any_order=True)
+
+            # Assert that Services were updated.
+            mock_update.assert_called_once()
+            for arg in mock_update.call_args.args:
+                assert arg is not None
+
+            # Assert that old Secrets were removed.
+            mock_rm.assert_has_calls([
+                call("1.example.com", "cert", keep),
+                call("1.example.com", "key", keep),
+                call("1.example.com", "chain", keep),
+                call("1.example.com", "fullchain", keep)
+            ], any_order=True)
+
+    def test_deploy_cert_already_deployed(self, installer):
+        # Certificate path.
+        cp = os.path.join(os.path.dirname(__file__), "assets", "cert.pem")
+
+        # This is the "keep" argument we expect is passed to
+        # SwarmInstaller.rm_oldest_secrets().
+        keep = DockerClientDefs.info() \
+                               .get("Swarm") \
+                               .get("Cluster") \
+                               .get("Spec") \
+                               .get("Orchestration") \
+                               .get("TaskHistoryRetentionLimit")
+
+        with patch.multiple(
+            SwarmInstaller,
+            is_secret_deployed=DEFAULT,
+            secret_from_file=DEFAULT,
+            update_services=DEFAULT,
+            rm_oldest_secrets=DEFAULT
+        ) as values:
+            mock_is_deployed = values["is_secret_deployed"]
+            mock_rm = values["rm_oldest_secrets"]
+            mock_update = values["update_services"]
+            mock_new = values["secret_from_file"]
+
+            # Make sure all Secrets are considered deployed.
+            mock_is_deployed.return_value = True
+
+            # Let's just deploy the certificate to all Secrets since
+            # the Secret contents don't really matter anyway.
+            installer.deploy_cert("1.example.com", cp, cp, cp, cp)
+
+            # Make sure no new Secrets are created.
+            mock_new.assert_not_called()
+
+            # Make sure Service updates are still attempted.
+            mock_update.assert_called_once()
+            for arg in mock_update.call_args.args:
+                assert arg is None
+
+            # Assert that old Secrets are removed.
+            mock_rm.assert_has_calls([
+                call("1.example.com", "cert", keep),
+                call("1.example.com", "key", keep),
+                call("1.example.com", "chain", keep),
+                call("1.example.com", "fullchain", keep)
+            ], any_order=True)
 
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_get_secrets(self, installer):
