@@ -191,6 +191,7 @@ class TestSwarmInstaller:
                                       .get("Orchestration") \
                                       .get("TaskHistoryRetentionLimit")
 
+    @pytest.mark.skip(reason="Nothing to test.")
     def test_prepare(self):
         pass
 
@@ -456,23 +457,28 @@ class TestSwarmInstaller:
     def test_update_services(self):
         pass
 
+    @pytest.mark.skip(reason="Nothing to test.")
     def test_enhance(self):
         pass
 
     def test_supported_enhancements(self, installer):
         assert installer.supported_enhancements() == []
 
+    @pytest.mark.skip(reason="Nothing to test.")
     def test_save(self):
         pass
 
+    @pytest.mark.skip(reason="Nothing to test.")
     def test_rollback_checkpoints(self):
         pass
 
     def test_recovery_routine(self):
         pass
 
+    @pytest.mark.skip(reason="Nothing to test.")
     def test_config_test(self):
         pass
 
+    @pytest.mark.skip(reason="Nothing to test.")
     def test_restart(self):
         pass
