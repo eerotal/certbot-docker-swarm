@@ -3,7 +3,9 @@
 import os
 import time
 import pytest
-from mock import patch, MagicMock
+
+import mock
+from mock import patch, MagicMock, PropertyMock
 
 from certbot.errors import PluginError
 from docker.client import DockerClient
@@ -13,7 +15,8 @@ from docker.models.secrets import Secret, SecretCollection
 from certbot_docker_swarm._internal.installer import SwarmInstaller
 from certbot_docker_swarm._internal.installer import SwarmInstallerUtils
 
-class NodeCollectionMock:
+
+class NodeCollectionDefs:
     @classmethod
     def list(cls):
         return [
@@ -37,7 +40,8 @@ class NodeCollectionMock:
         tmp.attrs["Spec"]["Role"] = "node"
         return tmp
 
-class SecretCollectionMock:
+
+class SecretCollectionDefs:
     @classmethod
     def list(cls):
         ret = []
@@ -129,47 +133,8 @@ class SecretCollectionMock:
             if s.id == secret_id:
                 return s
 
-    @classmethod
-    def get_predefined(cls, _secret_id, _name, _labels):
-        """Return a mocked method that always returns a predefined Secret.
 
-        :param str _secret_id: The predefined Secret ID.
-        :param str _name: The predefined Secret name
-        :param str _labels: The predefined Secret labels.
-
-        :return: The method described above.
-        :rtype: function
-        """
-        def closure(cls, secret_id):
-            return Secret({
-                "ID": _secret_id,
-                "Spec": {
-                    "Name": _name,
-                    "Labels": _labels
-                }
-            })
-
-        return closure
-
-    @classmethod
-    def create_predefined(cls, _secret_id, _name, _labels):
-        """Return a mocked method that asserts it's called with correct args.
-
-        :param str _secret_id: The predefined ID of the Secret that's created.
-        :param str _name: The expected Secret name.
-        :param str _labels: The expected labels.
-
-        :return: The method described above.
-        :rtype: function
-        """
-        def closure(cls, name, data, labels):
-            assert _name == name
-            assert _labels == labels
-            return Secret({"ID": _secret_id})
-
-        return closure
-
-class DockerClientMock:
+class DockerClientDefs:
     @classmethod
     def info(cls, *args, **kwargs):
         return {
@@ -192,33 +157,34 @@ class DockerClientMock:
         tmp["Swarm"]["LocalNodeState"] = "inactive"
         return tmp
 
+
 class TestSwarmInstaller:
     @pytest.fixture
     def docker_client(self):
         return DockerClient()
 
     @pytest.fixture
-    @patch.object(NodeCollection, "get", NodeCollectionMock.get)
-    @patch.object(DockerClient, "info", DockerClientMock.info)
+    @patch.object(NodeCollection, "get", NodeCollectionDefs.get)
+    @patch.object(DockerClient, "info", DockerClientDefs.info)
     def installer(self):
         """Returns an initialized partially mocked SwarmInstaller."""
         return SwarmInstaller({}, "docker-swarm", docker_client=DockerClient())
 
-    @patch.object(NodeCollection, "get", NodeCollectionMock.get_not_manager)
-    @patch.object(DockerClient, "info", DockerClientMock.info)
+    @patch.object(NodeCollection, "get", NodeCollectionDefs.get_not_manager)
+    @patch.object(DockerClient, "info", DockerClientDefs.info)
     def test_init_not_swarm_raises(self, docker_client):
         with pytest.raises(PluginError):
             SwarmInstaller({}, "docker-swarm", docker_client=docker_client)
 
-    @patch.object(NodeCollection, "get", NodeCollectionMock.get)
-    @patch.object(DockerClient, "info", DockerClientMock.info_not_swarm)
+    @patch.object(NodeCollection, "get", NodeCollectionDefs.get)
+    @patch.object(DockerClient, "info", DockerClientDefs.info_not_swarm)
     def test_init_not_manager_raises(self, docker_client):
         with pytest.raises(PluginError):
             SwarmInstaller({}, "docker-swarm", docker_client=docker_client)
 
     def test_keep_secrets_limit(self, installer):
         tmp = installer.keep_secrets
-        assert tmp == DockerClientMock.info() \
+        assert tmp == DockerClientDefs.info() \
                                       .get("Swarm") \
                                       .get("Cluster") \
                                       .get("Spec") \
@@ -231,7 +197,7 @@ class TestSwarmInstaller:
     def test_more_info(self, installer):
         assert type(installer.more_info()) is str
 
-    @patch.object(SecretCollection, "list", SecretCollectionMock.list)
+    @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_is_secret_deployed(self, installer):
         assert installer.is_secret_deployed(
             "1.example.com",
@@ -251,49 +217,73 @@ class TestSwarmInstaller:
             "AA:BB"
         ) is True
 
-    @patch.object( # Make sure created secrets always have a known ID.
-        SecretCollection,
-        "create",
-        SecretCollectionMock.create_predefined(
-            "abcdefg",
-            "1.example.com_key_v123456",
-            {
-                "certbot.certificate-fingerprint": "AA:BB:CC",
-                "certbot.domain": "1.example.com",
-                "certbot.managed": "true",
-                "certbot.name": "key",
-                "certbot.version": "123456"
-            }
-        )
-    )
-    @patch.object( # Make sure secrets always exist when .get() is called.
-        SecretCollection,
-        "get",
-        SecretCollectionMock.get_predefined(
-            "abcdefg",
-            "1.example.com_key_v123456",
-            {}
-        )
-    )
-    @patch("time.time", MagicMock(return_value=123456.0))
     def test_secret_from_file(self, installer):
-        """
-        This method is super hard to test. Some asserts are also done in
-        SecretCollectionMock.create_predefined() because I couldn't figure
-        out a way to spy calls to DockerClient.secrets.create() without
-        mocking a ton of stuff. Anyway, this test should work!
-        """
+        # Define the Secret properties here for later use.
+        secret_id = "abcdefg"
+        secret_domain = "1.example.com"
+        secret_name = "key"
+        secret_version = "123456"
+        secret_fingerprint = "AA:BB:CC"
 
-        ret = installer.secret_from_file(
-            "1.example.com",
-            "key",
-            os.path.join(os.path.dirname(__file__), "assets", "key.pem"),
-            "AA:BB:CC"
+        secret_filepath = os.path.join(
+            os.path.dirname(__file__),
+            "assets",
+            "key.pem"
         )
-        assert ret is not None
-        assert ret.id == "abcdefg"
+        secret_fullname = SwarmInstallerUtils.SECRET_FORMAT.format(
+            domain=secret_domain,
+            name=secret_name,
+            version=secret_version
+        )
+        secret_labels = {
+            "certbot.certificate-fingerprint": secret_fingerprint,
+            "certbot.domain": secret_domain,
+            "certbot.managed": "true",
+            "certbot.name": secret_name,
+            "certbot.version": secret_version
+        }
 
-    @patch.object(SecretCollection, "list", SecretCollectionMock.list)
+        secret = Secret({
+            "ID": secret_id,
+            "Spec": {
+                "Name": secret_fullname,
+                "Labels": secret_labels
+            }
+        })
+
+        # Patch time.time() to always return a known value because
+        # Secret IDs are generated from it.
+        with patch("time.time", return_value=123456.0):
+            with patch.object(DockerClient, "secrets") as mock_secrets:
+                # Patch DockerClient.secrets.get() to return a known Secret.
+                mock_secrets.get.return_value = secret
+
+                # Patch DockerClient.secrets.create() to return a known Secret.
+                # For some reason the original method seems to return a Secret
+                # with only the "ID" attribute set so let's emulate that for
+                # consistency.
+                mock_secrets.create.return_value = Secret({"ID": secret_id})
+
+                ret = installer.secret_from_file(
+                    secret_domain,
+                    secret_name,
+                    secret_filepath,
+                    secret_fingerprint
+                )
+
+                # Assert that the correct Secret was created.
+                mock_secrets.create.assert_called_once_with(
+                    name=secret_fullname,
+                    data=mock.ANY,
+                    labels=secret_labels
+                )
+
+                # Assert that the correct secret is returned.
+                assert ret is not None
+                assert ret.id == secret_id
+                assert ret.attrs == secret.attrs
+
+    @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_get_all_names(self, installer):
         tmp = installer.get_all_names()
         assert tmp == set(["1.example.com", "2.example.com"])
@@ -301,40 +291,39 @@ class TestSwarmInstaller:
     def test_deploy_cert(self):
         pass
 
-    @patch.object(SecretCollection, "list", SecretCollectionMock.list)
+    @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_get_secrets(self, installer):
-        tmp = installer.get_secrets("2.example.com", "cert", reverse=False)
-        assert len(tmp) == 2
-        assert tmp[0].id == "c"
-        assert tmp[1].id == "e"
+        t = installer.get_secrets("2.example.com", "cert", reverse=False)
+        assert len(t) == 2
+        assert t[0].id == "c"
+        assert t[1].id == "e"
 
-        tmp = installer.get_secrets("1.example.com", "chain", reverse=False)
-        assert len(tmp) == 1
-        assert tmp[0].id == "b"
+        t = installer.get_secrets("1.example.com", "chain", reverse=False)
+        assert len(t) == 1
+        assert t[0].id == "b"
 
-        tmp = installer.get_secrets("1.example.com", "fullchain", reverse=False)
-        assert tmp == []
+        t = installer.get_secrets("1.example.com", "fullchain", reverse=False)
+        assert t == []
 
-        tmp = installer.get_secrets("3.example.com", "cert", reverse=False)
-        assert tmp == []
+        t = installer.get_secrets("3.example.com", "cert", reverse=False)
+        assert t == []
 
-
-    @patch.object(SecretCollection, "list", SecretCollectionMock.list)
+    @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_get_secrets_reverse(self, installer):
-        tmp = installer.get_secrets("2.example.com", "cert", reverse=True)
-        assert len(tmp) == 2
-        assert tmp[0].id == "e"
-        assert tmp[1].id == "c"
+        t = installer.get_secrets("2.example.com", "cert", reverse=True)
+        assert len(t) == 2
+        assert t[0].id == "e"
+        assert t[1].id == "c"
 
-        tmp = installer.get_secrets("1.example.com", "chain", reverse=True)
-        assert len(tmp) == 1
-        assert tmp[0].id == "b"
+        t = installer.get_secrets("1.example.com", "chain", reverse=True)
+        assert len(t) == 1
+        assert t[0].id == "b"
 
-        tmp = installer.get_secrets("1.example.com", "fullchain", reverse=True)
-        assert tmp == []
+        t = installer.get_secrets("1.example.com", "fullchain", reverse=True)
+        assert t == []
 
-        tmp = installer.get_secrets("3.example.com", "cert", reverse=True)
-        assert tmp == []
+        t = installer.get_secrets("3.example.com", "cert", reverse=True)
+        assert t == []
 
     def test_rm_oldest_secrets(self):
         pass
