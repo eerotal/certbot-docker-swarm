@@ -325,8 +325,24 @@ class TestSwarmInstaller:
         t = installer.get_secrets("3.example.com", "cert", reverse=True)
         assert t == []
 
-    def test_rm_oldest_secrets(self):
-        pass
+    @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
+    def test_rm_oldest_secrets(self, installer):
+        removed = {}
+        def record_removed(self, removed=removed):
+            removed[self.id] = True
+
+        with patch.object(Secret, "remove", record_removed):
+            removed.clear()
+            installer.rm_oldest_secrets("2.example.com", "cert", 0)
+            assert removed == {"c": True, "e": True}
+
+            removed.clear()
+            installer.rm_oldest_secrets("2.example.com", "cert", 1)
+            assert removed == {"c": True}
+
+            removed.clear()
+            installer.rm_oldest_secrets("2.example.com", "cert", 10)
+            assert removed == {}
 
     def test_update_services(self):
         pass
