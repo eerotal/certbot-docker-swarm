@@ -100,10 +100,6 @@ class SwarmInstaller(Plugin):
 
             if newest_fp == fingerprint:
                 # Skip deployment if the secret has already been deployed.
-                logger.info(
-                    "{} with fingerprint {} already deployed. Skipping."
-                    .format(newest.name, fingerprint)
-                )
                 return True
 
         return False
@@ -202,7 +198,7 @@ class SwarmInstaller(Plugin):
         cert = None
         key = None
         chain = None
-        fullchain = None
+        fc = None
 
         # Create new secrets.
         if not is_secret_deployed(domain, "cert", fp):
@@ -212,10 +208,13 @@ class SwarmInstaller(Plugin):
         if not is_secret_deployed(domain, "chain", fp):
             chain = self.secret_from_file(domain, "chain", chain_path, fp)
         if not is_secret_deployed(domain, "fullchain", fp):
-            fchain = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
+            fc = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
+
+        if not cert or not key or not chain or not fullchain:
+            logger.info("Some secrets are already deployed. Skipping them.")
 
         # Update services.
-        self.update_services(cert, key, chain, fchain)
+        self.update_services(cert, key, chain, fc)
 
         # Remove old secrets.
         n = self.rm_oldest_secrets(domain, "cert", self.keep_secrets)
