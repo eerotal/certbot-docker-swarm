@@ -7,41 +7,42 @@ import os
 from docker.models.secrets import Secret
 from certbot_docker_swarm._internal.utils import SwarmInstallerUtils as utils
 
+
 class TestSwarmInstallerUtils:
     @pytest.fixture
     def secrets(self):
-            a = Secret()
-            a.attrs = {"Spec": {"Labels": {}}}
-            a.attrs["Spec"]["Name"] = "a"
-            a.attrs["Spec"]["Labels"][utils.L_MANAGED] = "false"
-            a.attrs["Spec"]["Labels"][utils.L_DOMAIN] = "1.example.com"
-            a.attrs["Spec"]["Labels"][utils.L_NAME] = "cert"
-            a.attrs["Spec"]["Labels"][utils.L_VERSION] = "0"
-            a.attrs["Spec"]["Labels"][utils.L_FINGERPRINT] = "AA:BB"
+        a = Secret()
+        a.attrs = {"Spec": {"Labels": {}}}
+        a.attrs["Spec"]["Name"] = "a"
+        a.attrs["Spec"]["Labels"][utils.L_MANAGED] = "false"
+        a.attrs["Spec"]["Labels"][utils.L_DOMAIN] = "1.example.com"
+        a.attrs["Spec"]["Labels"][utils.L_NAME] = "cert"
+        a.attrs["Spec"]["Labels"][utils.L_VERSION] = "0"
+        a.attrs["Spec"]["Labels"][utils.L_FINGERPRINT] = "AA:BB"
 
-            b = Secret()
-            b.attrs = {"Spec": {"Labels": {}}}
-            b.attrs["Spec"]["Name"] = "b"
-            b.attrs["Spec"]["Labels"][utils.L_MANAGED] = "true"
-            b.attrs["Spec"]["Labels"][utils.L_DOMAIN] = "2.example.com"
-            b.attrs["Spec"]["Labels"][utils.L_NAME] = "chain"
-            b.attrs["Spec"]["Labels"][utils.L_VERSION] = "1"
-            b.attrs["Spec"]["Labels"][utils.L_FINGERPRINT] = "AA:CC"
+        b = Secret()
+        b.attrs = {"Spec": {"Labels": {}}}
+        b.attrs["Spec"]["Name"] = "b"
+        b.attrs["Spec"]["Labels"][utils.L_MANAGED] = "true"
+        b.attrs["Spec"]["Labels"][utils.L_DOMAIN] = "2.example.com"
+        b.attrs["Spec"]["Labels"][utils.L_NAME] = "chain"
+        b.attrs["Spec"]["Labels"][utils.L_VERSION] = "1"
+        b.attrs["Spec"]["Labels"][utils.L_FINGERPRINT] = "AA:CC"
 
-            c = Secret()
-            c.attrs = {"Spec": {"Labels": {}}}
-            c.attrs["Spec"]["Name"] = "c"
-            c.attrs["Spec"]["Labels"][utils.L_MANAGED] = "true"
-            c.attrs["Spec"]["Labels"][utils.L_DOMAIN] = "2.example.com"
-            c.attrs["Spec"]["Labels"][utils.L_NAME] = "chain"
-            c.attrs["Spec"]["Labels"][utils.L_VERSION] = "2"
-            c.attrs["Spec"]["Labels"][utils.L_FINGERPRINT] = "AA:DD"
+        c = Secret()
+        c.attrs = {"Spec": {"Labels": {}}}
+        c.attrs["Spec"]["Name"] = "c"
+        c.attrs["Spec"]["Labels"][utils.L_MANAGED] = "true"
+        c.attrs["Spec"]["Labels"][utils.L_DOMAIN] = "2.example.com"
+        c.attrs["Spec"]["Labels"][utils.L_NAME] = "chain"
+        c.attrs["Spec"]["Labels"][utils.L_VERSION] = "2"
+        c.attrs["Spec"]["Labels"][utils.L_FINGERPRINT] = "AA:DD"
 
-            d = Secret()
-            d.attrs = {"Spec": {"Labels": {}}}
-            d.attrs["Spec"]["Name"] = "d"
+        d = Secret()
+        d.attrs = {"Spec": {"Labels": {}}}
+        d.attrs["Spec"]["Name"] = "d"
 
-            return {"a": a, "b": b, "c": c, "d": d}
+        return {"a": a, "b": b, "c": c, "d": d}
 
     def test_get_secret_managed(self, secrets):
         a, b, c, d = [secrets[x] for x in sorted(secrets)]
@@ -84,8 +85,8 @@ class TestSwarmInstallerUtils:
         assert utils.get_secret_fingerprint(d) is None
 
     def test_get_x509_fingerprint(self):
-        fingerprint=("D7:5C:60:9E:BE:8F:78:67:1D:0E:16:98:80:96:3A:B5:"
-                     "FF:88:A7:94:19:75:6D:11:A0:3E:1F:33:21:90:54:7F")
+        fingerprint = ("D7:5C:60:9E:BE:8F:78:67:1D:0E:16:98:80:96:3A:B5:"
+                       "FF:88:A7:94:19:75:6D:11:A0:3E:1F:33:21:90:54:7F")
 
         assert utils.get_x509_fingerprint(
             os.path.dirname(__file__) + "/assets/cert.pem"
