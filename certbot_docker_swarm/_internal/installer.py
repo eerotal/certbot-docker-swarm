@@ -201,16 +201,16 @@ class SwarmInstaller(Plugin):
         fc = None
 
         # Create new secrets.
-        if not is_secret_deployed(domain, "cert", fp):
+        if not self.is_secret_deployed(domain, "cert", fp):
             cert = self.secret_from_file(domain, "cert", cert_path, fp)
-        if not is_secret_deployed(domain, "key", fp):
+        if not self.is_secret_deployed(domain, "key", fp):
             key = self.secret_from_file(domain, "key", key_path, fp)
-        if not is_secret_deployed(domain, "chain", fp):
+        if not self.is_secret_deployed(domain, "chain", fp):
             chain = self.secret_from_file(domain, "chain", chain_path, fp)
-        if not is_secret_deployed(domain, "fullchain", fp):
+        if not self.is_secret_deployed(domain, "fullchain", fp):
             fc = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
 
-        if not cert or not key or not chain or not fullchain:
+        if not cert or not key or not chain or not fc:
             logger.info("Some secrets are already deployed. Skipping them.")
 
         # Update services.
