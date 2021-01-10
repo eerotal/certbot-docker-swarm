@@ -266,7 +266,12 @@ class SwarmInstaller(Plugin):
 
         :return: The number of secrets removed.
         :rtype: int
+
+        :raises: PluginError if keep < 0.
         """
+
+        if keep < 0:
+            raise PluginError("Number of Secrets to keep must be positive.")
 
         remove = self.get_secrets(domain, name, True)[keep:]
         n = len(remove)

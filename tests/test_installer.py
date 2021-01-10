@@ -327,22 +327,28 @@ class TestSwarmInstaller:
 
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_rm_oldest_secrets(self, installer):
-        removed = {}
+        removed = set([])
         def record_removed(self, removed=removed):
-            removed[self.id] = True
+            removed.add(self.id)
 
         with patch.object(Secret, "remove", record_removed):
             removed.clear()
             installer.rm_oldest_secrets("2.example.com", "cert", 0)
-            assert removed == {"c": True, "e": True}
+            assert removed == set(["c", "e"])
 
             removed.clear()
             installer.rm_oldest_secrets("2.example.com", "cert", 1)
-            assert removed == {"c": True}
+            assert removed == set(["c"])
 
             removed.clear()
             installer.rm_oldest_secrets("2.example.com", "cert", 10)
-            assert removed == {}
+            assert removed == set()
+
+    @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
+    def test_rm_oldest_secrets_negative_keep(self, installer):
+        with patch.object(Secret, "remove"):
+            with pytest.raises(PluginError):
+                installer.rm_oldest_secrets("2.example.com", "cert", -1)
 
     def test_update_services(self):
         pass
