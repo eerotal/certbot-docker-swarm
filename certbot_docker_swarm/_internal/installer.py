@@ -217,10 +217,10 @@ class SwarmInstaller(Plugin):
         self.update_services(cert, key, chain, fc)
 
         # Remove old secrets.
-        n = self.rm_oldest_secrets(domain, "cert", self.keep_secrets)
-        n += self.rm_oldest_secrets(domain, "key", self.keep_secrets)
-        n += self.rm_oldest_secrets(domain, "chain", self.keep_secrets)
-        n += self.rm_oldest_secrets(domain, "fullchain", self.keep_secrets)
+        n = self.rm_secrets(domain, "cert", self.keep_secrets)
+        n += self.rm_secrets(domain, "key", self.keep_secrets)
+        n += self.rm_secrets(domain, "chain", self.keep_secrets)
+        n += self.rm_secrets(domain, "fullchain", self.keep_secrets)
 
         logger.info("Removed {} old secrets.".format(n))
 
@@ -256,7 +256,7 @@ class SwarmInstaller(Plugin):
 
         return s
 
-    def rm_oldest_secrets(self, domain, name, keep):
+    def rm_secrets(self, domain, name, keep):
         # type: (str, str, int) -> int
         """Remove oldest secrets of a specific type for a specific domain.
 

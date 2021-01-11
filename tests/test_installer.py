@@ -298,7 +298,7 @@ class TestSwarmInstaller:
               "FF:88:A7:94:19:75:6D:11:A0:3E:1F:33:21:90:54:7F")
 
         # This is the "keep" argument we expect is passed to
-        # SwarmInstaller.rm_oldest_secrets().
+        # SwarmInstaller.rm_secrets().
         keep = DockerClientDefs.info() \
                                .get("Swarm") \
                                .get("Cluster") \
@@ -311,10 +311,10 @@ class TestSwarmInstaller:
             is_secret_deployed=DEFAULT,
             secret_from_file=DEFAULT,
             update_services=DEFAULT,
-            rm_oldest_secrets=DEFAULT
+            rm_secrets=DEFAULT
         ) as values:
             mock_is_deployed = values["is_secret_deployed"]
-            mock_rm = values["rm_oldest_secrets"]
+            mock_rm = values["rm_secrets"]
             mock_update = values["update_services"]
             mock_new = values["secret_from_file"]
 
@@ -351,7 +351,7 @@ class TestSwarmInstaller:
         cp = os.path.join(os.path.dirname(__file__), "assets", "cert.pem")
 
         # This is the "keep" argument we expect is passed to
-        # SwarmInstaller.rm_oldest_secrets().
+        # SwarmInstaller.rm_secrets().
         keep = DockerClientDefs.info() \
                                .get("Swarm") \
                                .get("Cluster") \
@@ -364,10 +364,10 @@ class TestSwarmInstaller:
             is_secret_deployed=DEFAULT,
             secret_from_file=DEFAULT,
             update_services=DEFAULT,
-            rm_oldest_secrets=DEFAULT
+            rm_secrets=DEFAULT
         ) as values:
             mock_is_deployed = values["is_secret_deployed"]
-            mock_rm = values["rm_oldest_secrets"]
+            mock_rm = values["rm_secrets"]
             mock_update = values["update_services"]
             mock_new = values["secret_from_file"]
 
@@ -429,7 +429,7 @@ class TestSwarmInstaller:
         assert t == []
 
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
-    def test_rm_oldest_secrets(self, installer):
+    def test_rm_secrets(self, installer):
         removed = set([])
 
         def record_removed(self, removed=removed):
@@ -437,22 +437,22 @@ class TestSwarmInstaller:
 
         with patch.object(Secret, "remove", record_removed):
             removed.clear()
-            installer.rm_oldest_secrets("2.example.com", "cert", 0)
+            installer.rm_secrets("2.example.com", "cert", 0)
             assert removed == set(["c", "e"])
 
             removed.clear()
-            installer.rm_oldest_secrets("2.example.com", "cert", 1)
+            installer.rm_secrets("2.example.com", "cert", 1)
             assert removed == set(["c"])
 
             removed.clear()
-            installer.rm_oldest_secrets("2.example.com", "cert", 10)
+            installer.rm_secrets("2.example.com", "cert", 10)
             assert removed == set()
 
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
-    def test_rm_oldest_secrets_negative_keep(self, installer):
+    def test_rm_secrets_negative_keep(self, installer):
         with patch.object(Secret, "remove"):
             with pytest.raises(PluginError):
-                installer.rm_oldest_secrets("2.example.com", "cert", -1)
+                installer.rm_secrets("2.example.com", "cert", -1)
 
     def test_update_services(self):
         pass
