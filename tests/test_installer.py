@@ -11,6 +11,8 @@ from certbot.errors import PluginError
 from docker.client import DockerClient
 from docker.models.nodes import Node, NodeCollection
 from docker.models.secrets import Secret, SecretCollection
+from docker.models.services import Service, ServiceCollection
+from docker.types.services import SecretReference
 
 from certbot_docker_swarm._internal.installer import SwarmInstaller
 from certbot_docker_swarm._internal.installer import SwarmInstallerUtils
@@ -50,7 +52,7 @@ class SecretCollectionDefs:
             Secret(attrs={
                 'ID': 'a',
                 'Spec': {
-                    'Name': 'example.com_cert_v0',
+                    'Name': '1.example.com_cert_v0',
                     'Labels': {
                         'certbot.certificate-fingerprint': 'AA:BB',
                         'certbot.domain': '1.example.com',
@@ -63,7 +65,7 @@ class SecretCollectionDefs:
             Secret(attrs={
                 'ID': 'b',
                 'Spec': {
-                    'Name': 'example.com_chain_v0',
+                    'Name': '1.example.com_chain_v0',
                     'Labels': {
                         'certbot.certificate-fingerprint': 'AA:BB',
                         'certbot.domain': '1.example.com',
@@ -76,7 +78,7 @@ class SecretCollectionDefs:
             Secret(attrs={
                 'ID': 'c',
                 'Spec': {
-                    'Name': 'example.com_cert_v0',
+                    'Name': '2.example.com_cert_v0',
                     'Labels': {
                         'certbot.certificate-fingerprint': 'AA:BB',
                         'certbot.domain': '2.example.com',
@@ -89,7 +91,7 @@ class SecretCollectionDefs:
             Secret(attrs={
                 'ID': 'd',
                 'Spec': {
-                    'Name': 'example.com_chain_v0',
+                    'Name': '2.example.com_chain_v0',
                     'Labels': {
                         'certbot.certificate-fingerprint': 'AA:BB',
                         'certbot.domain': '2.example.com',
@@ -102,7 +104,7 @@ class SecretCollectionDefs:
             Secret(attrs={
                 'ID': 'e',
                 'Spec': {
-                    'Name': 'example.com_cert_v1',
+                    'Name': '2.example.com_cert_v1',
                     'Labels': {
                         'certbot.certificate-fingerprint': 'AA:BB',
                         'certbot.domain': '2.example.com',
@@ -115,7 +117,7 @@ class SecretCollectionDefs:
             Secret(attrs={
                 'ID': 'f',
                 'Spec': {
-                    'Name': 'example.com_chain_v1',
+                    'Name': '2.example.com_chain_v1',
                     'Labels': {
                         'certbot.certificate-fingerprint': 'AA:BB',
                         'certbot.domain': '2.example.com',
@@ -132,6 +134,45 @@ class SecretCollectionDefs:
         for s in cls.list():
             if s.id == secret_id:
                 return s
+
+
+class ServiceCollectionDefs:
+    @classmethod
+    def list(cls):
+        return [
+            Service(attrs={
+                "Spec": {
+                    "ID": "qwerty",
+                    "Name": "Test Service",
+                    "TaskTemplate": {
+                        "ContainerSpec": {
+                            "Secrets": [
+                                {
+                                    "SecretID": "c",
+                                    "SecretName": "example.com_cert_v0",
+                                    "File": {
+                                        "Name": "example.com_cert",
+                                        "UID": "0",
+                                        "GID": "0",
+                                        "Mode": "292"
+                                    }
+                                },
+                                {
+                                    "SecretID": "d",
+                                    "SecretName": "example.com_chain_v0",
+                                    "File": {
+                                        "Name": "example.com_chain",
+                                        "UID": "0",
+                                        "GID": "0",
+                                        "Mode": "292"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            })
+        ]
 
 
 class DockerClientDefs:
@@ -454,8 +495,82 @@ class TestSwarmInstaller:
             with pytest.raises(PluginError):
                 installer.rm_secrets("2.example.com", "cert", -1)
 
-    def test_update_services(self):
-        pass
+    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
+    @patch.object(SecretCollection, "get", SecretCollectionDefs.get)
+    def test_update_services(self, installer):
+        cert = None
+        chain = None
+
+        # Find the correct Secrets from SecretCollectionDefs based on IDs.
+        # For this test, these are supposed to the Secrets that *renew*
+        # the Secrets in the test Service.
+        for secret in SecretCollectionDefs.list():
+            if secret.id == "e":
+                cert = secret
+            elif secret.id == "f":
+                chain = secret
+
+        with patch.object(Service, "update") as mock_update:
+            installer.update_services(cert, chain, None, None)
+
+            mock_update.assert_called_once()
+
+            # Assert that all the correct Secrets were updated.
+            updated = set()
+            for ref in mock_update.call_args.kwargs.get("secrets"):
+                assert isinstance(ref, SecretReference)
+                updated.add(ref.get("SecretID"))
+
+            assert updated == set(["e", "f"])
+
+    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
+    @patch.object(SecretCollection, "get", SecretCollectionDefs.get)
+    def test_update_services_not_updated(self, installer):
+        cert = None
+        chain = None
+
+        # Find the correct Secrets from SecretCollectionDefs based on IDs.
+        # For this test, these are supposed to be Secrets that *don't renew*
+        # the Secrets in the test Service.
+        for secret in SecretCollectionDefs.list():
+            if secret.id == "a":
+                cert = secret
+            elif secret.id == "b":
+                chain = secret
+
+        with patch.object(Service, "update") as mock_update:
+            installer.update_services(cert, chain, None, None)
+
+            # Update shouldn't be called because the Secrets don't
+            # renew the service Secrets.
+            mock_update.assert_not_called()
+
+    @patch.object(SecretCollection, "get", SecretCollectionDefs.get)
+    def test_renew_secret_reference(self, installer):
+        # SecretReference for Secret with ID: "c" in
+        # SecretCollectionDefs.list()
+        old_ref = SecretReference(
+            "c",
+            "2.example.com_cert_v0",
+            "2.example.com_cert",
+            "0",
+            "0",
+            "292"
+        )
+
+        # Use all test Secrets as candidates.
+        candidates = SecretCollectionDefs.list()
+
+        res = installer.renew_secret_reference(old_ref, candidates)
+        assert res.get("SecretName") == "2.example.com_cert_v1"
+        assert res.get("SecretID") == "e"
+        assert res.get("File").get("Name") == old_ref.get("File").get("Name")
+        assert res.get("File").get("UID") == old_ref.get("File").get("UID")
+        assert res.get("File").get("GID") == old_ref.get("File").get("GID")
+        assert res.get("File").get("Mode") == old_ref.get("File").get("Mode")
+
+        res = installer.renew_secret_reference(old_ref, [])
+        assert res == old_ref
 
     @pytest.mark.skip(reason="Nothing to test.")
     def test_enhance(self):
