@@ -400,7 +400,6 @@ class SwarmInstaller(Plugin):
 
         return old_ref
 
-
     def enhance(self, domain, enhancement, options=None):
         # type: (str, str, dict) -> None
         pass
