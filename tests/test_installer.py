@@ -583,10 +583,11 @@ class TestSwarmInstaller:
     def test_save(self):
         pass
 
-    @pytest.mark.skip(reason="Nothing to test.")
-    def test_rollback_checkpoints(self):
-        pass
+    def test_rollback_checkpoints(self, installer):
+        with pytest.raises(PluginError):
+            installer.rollback_checkpoints()
 
+    @pytest.mark.skip(reason="Nothing to test.")
     def test_recovery_routine(self):
         pass
 

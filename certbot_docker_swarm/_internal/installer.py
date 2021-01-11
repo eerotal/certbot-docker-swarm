@@ -79,6 +79,105 @@ class SwarmInstaller(Plugin):
                "automatically updates Docker Swarm Services to use" \
                "the renewed secrets."
 
+    def get_all_names(self):
+        # type: () -> List[str]
+        """Get all domain names that have at least one existing secret.
+
+        :rtype: Set[str]
+        """
+
+        f = {}
+        f[SwarmInstallerUtils.L_MANAGED] = lambda x: x == "true"
+        f[SwarmInstallerUtils.L_DOMAIN] = lambda x: x is not None
+        f[SwarmInstallerUtils.L_NAME] = lambda x: x is not None
+        f[SwarmInstallerUtils.L_VERSION] = lambda x: x is not None
+        f[SwarmInstallerUtils.L_FINGERPRINT] = lambda x: x is not None
+
+        s = self.docker_client.secrets.list()
+        s = SwarmInstallerUtils.filter_secrets(s, f)
+
+        return set([SwarmInstallerUtils.get_secret_domain(x) for x in s])
+
+    def deploy_cert(
+        self,
+        domain,
+        cert_path,
+        key_path,
+        chain_path,
+        fullchain_path
+    ):
+        # type: (str, str, str, str, str) -> None
+        """Create Docker Swarm Secrets from certificates.
+
+        :param str domain: Certificate domain.
+        :param str cert_path: Path to the certificate file.
+        :param str key_path: Path to the private key file.
+        :param str chain_path: Path to the certificate chain file.
+        :param str fullchain_path: Path to the fullchain file.
+        """
+
+        fp = SwarmInstallerUtils.get_x509_fingerprint(cert_path)
+
+        cert = None
+        key = None
+        chain = None
+        fc = None
+
+        # Create new secrets.
+        if not self.is_secret_deployed(domain, "cert", fp):
+            cert = self.secret_from_file(domain, "cert", cert_path, fp)
+        if not self.is_secret_deployed(domain, "key", fp):
+            key = self.secret_from_file(domain, "key", key_path, fp)
+        if not self.is_secret_deployed(domain, "chain", fp):
+            chain = self.secret_from_file(domain, "chain", chain_path, fp)
+        if not self.is_secret_deployed(domain, "fullchain", fp):
+            fc = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
+
+        if not cert or not key or not chain or not fc:
+            logger.info("Some secrets are already deployed. Skipping them.")
+
+        # Update services.
+        self.update_services(cert, key, chain, fc)
+
+        # Remove old secrets.
+        n = self.rm_secrets(domain, "cert", self.keep_secrets)
+        n += self.rm_secrets(domain, "key", self.keep_secrets)
+        n += self.rm_secrets(domain, "chain", self.keep_secrets)
+        n += self.rm_secrets(domain, "fullchain", self.keep_secrets)
+
+        logger.info("Removed {} old secrets.".format(n))
+
+    def enhance(self, domain, enhancement, options=None):
+        # type: (str, str, dict) -> None
+        pass
+
+    def supported_enhancements(self):
+        # type: () -> List[str]
+        return []
+
+    def save(self, title=None, temporary=False):
+        # type: (str, bool) -> None
+        pass
+
+    def rollback_checkpoints(self, rollback=1):
+        # type: (int) -> None
+        raise PluginError("Docker Swarm installer doesn't support rollbacks.")
+
+    def recovery_routine(self):
+        # type: () -> None
+
+        # A recovery routine is not needed because Services are all updated
+        # at once and if the program crashes, no changes are saved anyway.
+        pass
+
+    def config_test(self):
+        # type: () -> None
+        pass
+
+    def restart(self):
+        # type: () -> None
+        pass
+
     def is_secret_deployed(self, domain, name, fingerprint):
         # type: (str, str, str) -> bool
         """Check whether a secret is already deployed based on fingerprints.
@@ -155,74 +254,6 @@ class SwarmInstaller(Plugin):
             )
 
             return self.docker_client.secrets.get(sid)
-
-    def get_all_names(self):
-        # type: () -> List[str]
-        """Get all domain names that have at least one existing secret.
-
-        :rtype: Set[str]
-        """
-
-        f = {}
-        f[SwarmInstallerUtils.L_MANAGED] = lambda x: x == "true"
-        f[SwarmInstallerUtils.L_DOMAIN] = lambda x: x is not None
-        f[SwarmInstallerUtils.L_NAME] = lambda x: x is not None
-        f[SwarmInstallerUtils.L_VERSION] = lambda x: x is not None
-        f[SwarmInstallerUtils.L_FINGERPRINT] = lambda x: x is not None
-
-        s = self.docker_client.secrets.list()
-        s = SwarmInstallerUtils.filter_secrets(s, f)
-
-        return set([SwarmInstallerUtils.get_secret_domain(x) for x in s])
-
-    def deploy_cert(
-        self,
-        domain,
-        cert_path,
-        key_path,
-        chain_path,
-        fullchain_path
-    ):
-        # type: (str, str, str, str, str) -> None
-        """Create Docker Swarm Secrets from certificates.
-
-        :param str domain: Certificate domain.
-        :param str cert_path: Path to the certificate file.
-        :param str key_path: Path to the private key file.
-        :param str chain_path: Path to the certificate chain file.
-        :param str fullchain_path: Path to the fullchain file.
-        """
-
-        fp = SwarmInstallerUtils.get_x509_fingerprint(cert_path)
-
-        cert = None
-        key = None
-        chain = None
-        fc = None
-
-        # Create new secrets.
-        if not self.is_secret_deployed(domain, "cert", fp):
-            cert = self.secret_from_file(domain, "cert", cert_path, fp)
-        if not self.is_secret_deployed(domain, "key", fp):
-            key = self.secret_from_file(domain, "key", key_path, fp)
-        if not self.is_secret_deployed(domain, "chain", fp):
-            chain = self.secret_from_file(domain, "chain", chain_path, fp)
-        if not self.is_secret_deployed(domain, "fullchain", fp):
-            fc = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
-
-        if not cert or not key or not chain or not fc:
-            logger.info("Some secrets are already deployed. Skipping them.")
-
-        # Update services.
-        self.update_services(cert, key, chain, fc)
-
-        # Remove old secrets.
-        n = self.rm_secrets(domain, "cert", self.keep_secrets)
-        n += self.rm_secrets(domain, "key", self.keep_secrets)
-        n += self.rm_secrets(domain, "chain", self.keep_secrets)
-        n += self.rm_secrets(domain, "fullchain", self.keep_secrets)
-
-        logger.info("Removed {} old secrets.".format(n))
 
     def get_secrets(self, domain, name, reverse=False):
         # type: (str, str) -> List[Secret]
@@ -399,53 +430,3 @@ class SwarmInstaller(Plugin):
                 )
 
         return old_ref
-
-    def enhance(self, domain, enhancement, options=None):
-        # type: (str, str, dict) -> None
-        pass
-
-    def supported_enhancements(self):
-        # type: () -> List[str]
-        return []
-
-    def save(self, title=None, temporary=False):
-        # type: (str, bool) -> None
-        pass
-
-    def rollback_checkpoints(self, rollback=1):
-        # type: (int) -> None
-        pass
-
-    def recovery_routine(self):
-        # type: () -> None
-        """Revert changes to updated services.
-
-        :raises: PluginError if rollback fails.
-        """
-
-        failed = []
-        for service_id in self.old_secret_refs:
-            service = self.docker_client.services.get(service_id)
-
-            try:
-                service.update(secrets=self.old_secret_refs[service_id])
-            except APIError as e:
-                logger.error(
-                    "Failed to rollback service: {}: {}"
-                    .format(service.name, str(e))
-                )
-                failed.append(service)
-
-        if len(failed) != 0:
-            raise PluginError(
-                "Failed to rollback {} services."
-                .format(len(failed))
-            )
-
-    def config_test(self):
-        # type: () -> None
-        pass
-
-    def restart(self):
-        # type: () -> None
-        pass
