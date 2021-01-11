@@ -303,19 +303,19 @@ class SwarmInstaller(Plugin):
         :param Secret fchain: Renewed fullchain Secret.
         """
 
-        renew_candidates = list(filter(
+        candidates = list(filter(
             lambda x: x is not None,
             [cert, key, chain, fchain]
         ))
 
-        if len(renew_candidates) == 0:
+        if len(candidates) == 0:
             logger.info("No secrets renewed. Skipping service update.")
             return
 
         logger.info("Updating Docker Swarm Services.")
         logger.debug(
             "Secret renew candidates: {}"
-            .format(", ".join([x.name for x in renew_candidates]))
+            .format(", ".join([x.name for x in candidates]))
         )
 
         for service in self.docker_client.services.list():
@@ -328,75 +328,78 @@ class SwarmInstaller(Plugin):
             new_secret_refs = []
             old_secret_refs = []
 
-            secret_confs = service.attrs.get("Spec") \
-                                        .get("TaskTemplate") \
-                                        .get("ContainerSpec") \
-                                        .get("Secrets")
+            spec = service.attrs.get("Spec") \
+                                .get("TaskTemplate") \
+                                .get("ContainerSpec") \
+                                .get("Secrets")
 
-            # Skip services with no secrets.
-            if secret_confs is None:
+            # Skip Services with no Secrets.
+            if spec is None:
                 logger.debug("--> No secrets in service.")
                 continue
 
-            for tmp in secret_confs:
-                old = self.docker_client.secrets.get(tmp.get("SecretID"))
+            for ref in spec:
+                # Create old SecretReference from Service spec.
+                old = SecretReference(
+                    ref.get("SecretID"),
+                    ref.get("SecretName"),
+                    ref.get("File").get("Name"),
+                    ref.get("File").get("UID"),
+                    ref.get("File").get("GID"),
+                    ref.get("File").get("Mode")
+                )
 
-                # Check whether any of the secrets in renew_candidates
-                # renew the old secret.
-                update_id = None
-                update_name = None
-                for new in renew_candidates:
-                    logger.debug(
-                        "--> Checking if {} renews {}."
-                        .format(new.name, old.name)
-                    )
-                    if SwarmInstallerUtils.secret_renews(old, new):
-                        update_id = new.id
-                        update_name = new.name
-                        dirty = True
+                # Attempt to renew SecretReference with Secret candidates.
+                new = self.renew_secret_reference(old, candidates)
 
-                        logger.info(
-                            "--> Update {}: {} -> {}"
-                            .format(
-                                tmp.get("File").get("Name"),
-                                tmp.get("SecretName"),
-                                new.name
-                            )
-                        )
+                old_secret_refs.append(old)
+                new_secret_refs.append(new)
 
-                        break
-
-                if update_id is None:
-                    # None of the secrets in renew_candidates renew
-                    # the old secret -> use the old secret as-is.
-                    update_id = tmp.get("SecretID")
-                    update_name = tmp.get("SecretName")
-
-                fpar = [
-                    tmp.get("File").get("Name"),
-                    tmp.get("File").get("UID"),
-                    tmp.get("File").get("GID"),
-                    tmp.get("File").get("Mode")
-                ]
-
-                # Store old SecretReference.
-                old_secret_refs.append(SecretReference(
-                    tmp.get("SecretID"),
-                    tmp.get("SecretName"),
-                    *fpar
-                ))
-
-                # Create new SecretReference.
-                new_secret_refs.append(SecretReference(
-                    update_id,
-                    update_name,
-                    *fpar
-                ))
+                dirty = (new != old or dirty)
 
             if dirty:
                 logger.info("--> Committing changes.")
                 self.old_secret_refs[service.id] = old_secret_refs
                 service.update(secrets=new_secret_refs)
+
+    def renew_secret_reference(self, old_ref, candidates):
+        # type: (SecretReference, List[Secret]) -> None
+        """Attempt to renew a SecretReference with a list of new Secrets.
+
+        :param SecretReference old_ref: The old SecretReference.
+        :param List[Secret] candidates: New Secrets.
+
+        :return: A new SecretReference or old_ref if renewal was not possible.
+        :rtype: SecretReference.
+        """
+
+        for new in candidates:
+            old = self.docker_client.secrets.get(old_ref.get("SecretID"))
+            logger.debug(
+                "--> Checking whether {} renews {}."
+                .format(new.name, old.name)
+            )
+
+            if SwarmInstallerUtils.secret_renews(old, new):
+                logger.info(
+                    "--> Update {}: {} -> {}"
+                    .format(
+                        old_ref.get("File").get("Name"),
+                        old_ref.get("SecretName"),
+                        new.name
+                    )
+                )
+                return SecretReference(
+                    new.id,
+                    new.name,
+                    old_ref.get("File").get("Name"),
+                    old_ref.get("File").get("UID"),
+                    old_ref.get("File").get("GID"),
+                    old_ref.get("File").get("Mode")
+                )
+
+        return old_ref
+
 
     def enhance(self, domain, enhancement, options=None):
         # type: (str, str, dict) -> None
