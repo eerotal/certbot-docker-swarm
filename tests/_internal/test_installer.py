@@ -21,10 +21,11 @@ from docker.models.services import Service, ServiceCollection
 from docker.types.services import SecretReference
 
 from certbot_docker_swarm._internal.installer import SwarmInstaller
-from certbot_docker_swarm._internal.installer import SwarmInstallerUtils
+from certbot_docker_swarm._internal.util.secretutils import SecretUtils
 from certbot_docker_swarm._internal.models.secretspec import SecretSpec
 
-from .fakes.docker import *
+from tests._internal.fakes.docker import *
+from tests.config.defs import ASSET_PATH
 
 
 class TestSwarmInstaller():
@@ -127,12 +128,8 @@ class TestSwarmInstaller():
         secret_version = "123456"
         secret_fingerprint = "AA:BB:CC"
 
-        secret_filepath = os.path.join(
-            os.path.dirname(__file__),
-            "assets",
-            "key.pem"
-        )
-        secret_fullname = SwarmInstallerUtils.SECRET_FORMAT.format(
+        secret_filepath = os.path.join(ASSET_PATH, "key.pem")
+        secret_fullname = SecretUtils.SECRET_FORMAT.format(
             domain=secret_domain,
             name=secret_name,
             version=secret_version
@@ -192,7 +189,7 @@ class TestSwarmInstaller():
 
     def test_deploy_cert(self, installer):
         # Certificate path.
-        cp = os.path.join(os.path.dirname(__file__), "assets", "cert.pem")
+        cp = os.path.join(ASSET_PATH, "cert.pem")
 
         # Certificate fingerprint.
         cf = ("D7:5C:60:9E:BE:8F:78:67:1D:0E:16:98:80:96:3A:B5:"
@@ -227,7 +224,7 @@ class TestSwarmInstaller():
 
     def test_deploy_cert_already_deployed(self, installer):
         # Certificate path.
-        cp = os.path.join(os.path.dirname(__file__), "assets", "cert.pem")
+        cp = os.path.join(ASSET_PATH, "cert.pem")
 
         with patch.multiple(
             SwarmInstaller,

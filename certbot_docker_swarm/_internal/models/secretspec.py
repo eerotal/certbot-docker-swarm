@@ -3,7 +3,7 @@ import logging
 
 from docker.types.services import SecretReference
 
-from certbot_docker_swarm._internal.utils import SwarmInstallerUtils
+from certbot_docker_swarm._internal.util.secretutils import SecretUtils
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ class SecretSpec():
         """
 
         old = self.docker_client.secrets.get(ref.get("SecretID"))
-        if SwarmInstallerUtils.secret_renews(old, candidate):
+        if SecretUtils.secret_renews(old, candidate):
             logger.info(
                 "--> Update {}: {} -> {}"
                 .format(

@@ -10,7 +10,7 @@ from docker.types.services import SecretReference
 
 from certbot_docker_swarm._internal.models.secretspec import SecretSpec
 
-from ..fakes.docker import *
+from tests._internal.fakes.docker import *
 
 class TestSecretSpec:
     @pytest.fixture

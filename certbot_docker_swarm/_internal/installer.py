@@ -17,7 +17,7 @@ from docker.errors import APIError
 from docker.types.services import SecretReference
 from docker.models.secrets import Secret
 
-from certbot_docker_swarm._internal.utils import SwarmInstallerUtils
+from certbot_docker_swarm._internal.util.secretutils import SecretUtils
 from certbot_docker_swarm._internal.models.secretspec import SecretSpec
 
 logger = logging.getLogger(__name__)
@@ -94,16 +94,16 @@ class SwarmInstaller(Installer):
         """
 
         f = {}
-        f[SwarmInstallerUtils.L_MANAGED] = lambda x: x == "true"
-        f[SwarmInstallerUtils.L_DOMAIN] = lambda x: x is not None
-        f[SwarmInstallerUtils.L_NAME] = lambda x: x is not None
-        f[SwarmInstallerUtils.L_VERSION] = lambda x: x is not None
-        f[SwarmInstallerUtils.L_FINGERPRINT] = lambda x: x is not None
+        f[SecretUtils.L_MANAGED] = lambda x: x == "true"
+        f[SecretUtils.L_DOMAIN] = lambda x: x is not None
+        f[SecretUtils.L_NAME] = lambda x: x is not None
+        f[SecretUtils.L_VERSION] = lambda x: x is not None
+        f[SecretUtils.L_FINGERPRINT] = lambda x: x is not None
 
         s = self.docker_client.secrets.list()
-        s = SwarmInstallerUtils.filter_secrets(s, f)
+        s = SecretUtils.filter_secrets(s, f)
 
-        return set([SwarmInstallerUtils.get_secret_domain(x) for x in s])
+        return set([SecretUtils.get_secret_domain(x) for x in s])
 
     def deploy_cert(
         self,
@@ -123,7 +123,7 @@ class SwarmInstaller(Installer):
         :param str fullchain_path: Path to the fullchain file.
         """
 
-        fp = SwarmInstallerUtils.get_x509_fingerprint(cert_path)
+        fp = SecretUtils.get_x509_fingerprint(cert_path)
 
         cert = None
         key = None
@@ -222,7 +222,7 @@ class SwarmInstaller(Installer):
 
         if len(existing_secrets) != 0:
             newest = existing_secrets[-1]
-            newest_fp = SwarmInstallerUtils.get_secret_fingerprint(newest)
+            newest_fp = SecretUtils.get_secret_fingerprint(newest)
 
             if newest_fp == fingerprint:
                 # Skip deployment if the secret has already been deployed.
@@ -249,13 +249,13 @@ class SwarmInstaller(Installer):
         version = str(int(time.time()))
 
         labels = {}
-        labels[SwarmInstallerUtils.L_MANAGED] = "true"
-        labels[SwarmInstallerUtils.L_DOMAIN] = domain
-        labels[SwarmInstallerUtils.L_NAME] = name
-        labels[SwarmInstallerUtils.L_VERSION] = version
-        labels[SwarmInstallerUtils.L_FINGERPRINT] = fingerprint
+        labels[SecretUtils.L_MANAGED] = "true"
+        labels[SecretUtils.L_DOMAIN] = domain
+        labels[SecretUtils.L_NAME] = name
+        labels[SecretUtils.L_VERSION] = version
+        labels[SecretUtils.L_FINGERPRINT] = fingerprint
 
-        name = SwarmInstallerUtils.SECRET_FORMAT.format(
+        name = SecretUtils.SECRET_FORMAT.format(
             domain=domain,
             name=name,
             version=version
@@ -298,17 +298,17 @@ class SwarmInstaller(Installer):
         """
 
         f = {}
-        f[SwarmInstallerUtils.L_MANAGED] = lambda x: x == "true"
-        f[SwarmInstallerUtils.L_DOMAIN] = lambda x: x == domain
-        f[SwarmInstallerUtils.L_NAME] = lambda x: x == name
-        f[SwarmInstallerUtils.L_VERSION] = lambda x: x is not None
-        f[SwarmInstallerUtils.L_FINGERPRINT] = lambda x: x is not None
+        f[SecretUtils.L_MANAGED] = lambda x: x == "true"
+        f[SecretUtils.L_DOMAIN] = lambda x: x == domain
+        f[SecretUtils.L_NAME] = lambda x: x == name
+        f[SecretUtils.L_VERSION] = lambda x: x is not None
+        f[SecretUtils.L_FINGERPRINT] = lambda x: x is not None
 
         s = self.docker_client.secrets.list()
-        s = SwarmInstallerUtils.filter_secrets(s, f)
-        s = SwarmInstallerUtils.sort_secrets(
+        s = SecretUtils.filter_secrets(s, f)
+        s = SecretUtils.sort_secrets(
             s,
-            SwarmInstallerUtils.L_VERSION,
+            SecretUtils.L_VERSION,
             reverse
         )
 
