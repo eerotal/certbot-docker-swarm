@@ -22,194 +22,9 @@ from docker.types.services import SecretReference
 
 from certbot_docker_swarm._internal.installer import SwarmInstaller
 from certbot_docker_swarm._internal.installer import SwarmInstallerUtils
-from certbot_docker_swarm._internal.SecretSpec import SecretSpec
+from certbot_docker_swarm._internal.models.secretspec import SecretSpec
 
-
-class NodeCollectionDefs:
-    @classmethod
-    def list(cls):
-        return [
-            Node(attrs={
-                "ID": "abcde",
-                "Spec": {
-                    "Role": "manager"
-                }
-            })
-        ]
-
-    @classmethod
-    def get(cls, node_id):
-        for n in cls.list():
-            if n.id == node_id:
-                return n
-
-    @classmethod
-    def get_not_manager(cls, node_id):
-        tmp = cls.get(node_id)
-        tmp.attrs["Spec"]["Role"] = "node"
-        return tmp
-
-
-class SecretCollectionDefs:
-    @classmethod
-    def list(cls):
-        ret = []
-
-        return [
-            Secret(attrs={
-                'ID': 'a',
-                'Spec': {
-                    'Name': '1.example.com_cert_v0',
-                    'Labels': {
-                        'certbot.certificate-fingerprint': 'AA:BB',
-                        'certbot.domain': '1.example.com',
-                        'certbot.managed': 'true',
-                        'certbot.name': 'cert',
-                        'certbot.version': '0'
-                    }
-                }
-            }),
-            Secret(attrs={
-                'ID': 'b',
-                'Spec': {
-                    'Name': '1.example.com_chain_v0',
-                    'Labels': {
-                        'certbot.certificate-fingerprint': 'AA:BB',
-                        'certbot.domain': '1.example.com',
-                        'certbot.managed': 'true',
-                        'certbot.name': 'chain',
-                        'certbot.version': '0'
-                    }
-                }
-            }),
-            Secret(attrs={
-                'ID': 'c',
-                'Spec': {
-                    'Name': '2.example.com_cert_v0',
-                    'Labels': {
-                        'certbot.certificate-fingerprint': 'AA:BB',
-                        'certbot.domain': '2.example.com',
-                        'certbot.managed': 'true',
-                        'certbot.name': 'cert',
-                        'certbot.version': '0'
-                    }
-                }
-            }),
-            Secret(attrs={
-                'ID': 'd',
-                'Spec': {
-                    'Name': '2.example.com_chain_v0',
-                    'Labels': {
-                        'certbot.certificate-fingerprint': 'AA:BB',
-                        'certbot.domain': '2.example.com',
-                        'certbot.managed': 'true',
-                        'certbot.name': 'chain',
-                        'certbot.version': '0'
-                    }
-                }
-            }),
-            Secret(attrs={
-                'ID': 'e',
-                'Spec': {
-                    'Name': '2.example.com_cert_v1',
-                    'Labels': {
-                        'certbot.certificate-fingerprint': 'AA:BB',
-                        'certbot.domain': '2.example.com',
-                        'certbot.managed': 'true',
-                        'certbot.name': 'cert',
-                        'certbot.version': '1'
-                    }
-                }
-            }),
-            Secret(attrs={
-                'ID': 'f',
-                'Spec': {
-                    'Name': '2.example.com_chain_v1',
-                    'Labels': {
-                        'certbot.certificate-fingerprint': 'AA:BB',
-                        'certbot.domain': '2.example.com',
-                        'certbot.managed': 'true',
-                        'certbot.name': 'chain',
-                        'certbot.version': '1'
-                    }
-                }
-            })
-        ]
-
-    @classmethod
-    def get(cls, secret_id):
-        for s in cls.list():
-            if s.id == secret_id:
-                return s
-
-
-class ServiceCollectionDefs:
-    @classmethod
-    def list(cls):
-        return [
-            Service(attrs={
-                "ID": "qwerty",
-                "Spec": {
-                    "Name": "Test Service",
-                    "TaskTemplate": {
-                        "ContainerSpec": {
-                            "Secrets": [
-                                {
-                                    "SecretID": "c",
-                                    "SecretName": "example.com_cert_v0",
-                                    "File": {
-                                        "Name": "example.com_cert",
-                                        "UID": "0",
-                                        "GID": "0",
-                                        "Mode": "292"
-                                    }
-                                },
-                                {
-                                    "SecretID": "d",
-                                    "SecretName": "example.com_chain_v0",
-                                    "File": {
-                                        "Name": "example.com_chain",
-                                        "UID": "0",
-                                        "GID": "0",
-                                        "Mode": "292"
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            })
-        ]
-
-    @classmethod
-    def get(cls, service_id):
-        for service in cls.list():
-            if service.id == service_id:
-                return service
-
-
-class DockerClientDefs:
-    @classmethod
-    def info(cls, *args, **kwargs):
-        return {
-            "Swarm": {
-                "NodeID": "abcde",
-                "LocalNodeState": "active",
-                "Cluster": {
-                    "Spec": {
-                        "Orchestration": {
-                            "TaskHistoryRetentionLimit": 5
-                        }
-                    }
-                }
-            }
-        }
-
-    @classmethod
-    def info_not_swarm(cls, *args, **kwargs):
-        tmp = cls.info()
-        tmp["Swarm"]["LocalNodeState"] = "inactive"
-        return tmp
+from .fakes.docker import *
 
 
 class TestSwarmInstaller():
@@ -386,32 +201,29 @@ class TestSwarmInstaller():
         with patch.multiple(
             SwarmInstaller,
             is_secret_deployed=DEFAULT,
-            secret_from_file=DEFAULT,
-            update_secret_refs=DEFAULT
+            secret_from_file=DEFAULT
         ) as values:
             mock_is_secret_deployed = values["is_secret_deployed"]
             mock_secret_from_file = values["secret_from_file"]
-            mock_update_secret_refs = values["update_secret_refs"]
 
-            # Make sure all Secrets are considered not deployed.
-            mock_is_secret_deployed.return_value = False
+            with patch.object(SecretSpec, "update_refs") as mock_update_refs:
+                # Make sure all Secrets are considered not deployed.
+                mock_is_secret_deployed.return_value = False
 
-            # Let's just deploy the certificate to all Secrets since
-            # the Secret contents don't really matter anyway.
-            installer.deploy_cert("1.example.com", cp, cp, cp, cp)
+                # Let's just deploy the certificate to all Secrets since
+                # the Secret contents don't really matter anyway.
+                installer.deploy_cert("1.example.com", cp, cp, cp, cp)
 
-            # Assert that new Secrtes were created.
-            mock_secret_from_file.assert_has_calls([
-                call("1.example.com", "cert", cp, cf),
-                call("1.example.com", "key", cp, cf),
-                call("1.example.com", "chain", cp, cf),
-                call("1.example.com", "fullchain", cp, cf),
-            ], any_order=True)
+                # Assert that new Secrtes were created.
+                mock_secret_from_file.assert_has_calls([
+                    call("1.example.com", "cert", cp, cf),
+                    call("1.example.com", "key", cp, cf),
+                    call("1.example.com", "chain", cp, cf),
+                    call("1.example.com", "fullchain", cp, cf),
+                ], any_order=True)
 
-            # Assert that the SecretSpec was updated.
-            mock_update_secret_refs.assert_called_once()
-            for arg in mock_update_secret_refs.call_args.args:
-                assert arg is not None
+                # Assert that the SecretSpec was updated.
+                mock_update_refs.assert_called()
 
     def test_deploy_cert_already_deployed(self, installer):
         # Certificate path.
@@ -420,24 +232,21 @@ class TestSwarmInstaller():
         with patch.multiple(
             SwarmInstaller,
             is_secret_deployed=DEFAULT,
-            secret_from_file=DEFAULT,
-            update_secret_refs=DEFAULT
+            secret_from_file=DEFAULT
         ) as values:
             mock_is_secret_deployed = values["is_secret_deployed"]
             mock_secret_from_file = values["secret_from_file"]
-            mock_update_secret_refs = values["update_secret_refs"]
 
-            # Make sure all Secrets are considered deployed.
-            mock_is_secret_deployed.return_value = True
+            with patch.object(SecretSpec, "update_refs") as mock_update_refs:
+                # Make sure all Secrets are considered deployed.
+                mock_is_secret_deployed.return_value = True
 
-            # Let's just deploy the certificate to all Secrets since
-            # the Secret contents don't really matter anyway.
-            installer.deploy_cert("1.example.com", cp, cp, cp, cp)
+                # Let's just deploy the certificate to all Secrets since
+                # the Secret contents don't really matter anyway.
+                installer.deploy_cert("1.example.com", cp, cp, cp, cp)
 
-            # Assert that the SecretSpec was not updated.
-            mock_update_secret_refs.assert_called_once()
-            for arg in mock_update_secret_refs.call_args.args:
-                assert arg is None
+                # Assert that the SecretSpec was not updated.
+                mock_update_refs.assert_not_called()
 
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_get_secrets(self, installer):
@@ -497,83 +306,6 @@ class TestSwarmInstaller():
             with pytest.raises(PluginError):
                 installer.rm_secrets(-1)
 
-    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
-    @patch.object(SecretCollection, "get", SecretCollectionDefs.get)
-    def test_update_secret_refs(self, installer):
-        cert = None
-        chain = None
-
-        # Find the correct Secrets from SecretCollectionDefs based on IDs.
-        # For this test, these are supposed to the Secrets that *renew*
-        # the Secrets in the test Service.
-        for secret in SecretCollectionDefs.list():
-            if secret.id == "e":
-                cert = secret
-            elif secret.id == "f":
-                chain = secret
-
-        installer.update_secret_refs(cert, chain, None, None)
-
-        updated = set()
-        for secret_id in installer.secret_spec.services.get("qwerty"):
-            updated.add(secret_id)
-
-        # The original Secret IDs are "c" and "d". Assert that
-        # Secrets were updated.
-        assert updated == set(["e", "f"])
-
-    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
-    @patch.object(SecretCollection, "get", SecretCollectionDefs.get)
-    def test_update_services_not_updated(self, installer):
-        cert = None
-        chain = None
-
-        # Find the correct Secrets from SecretCollectionDefs based on IDs.
-        # For this test, these are supposed to be Secrets that *don't renew*
-        # the Secrets in the test Service.
-        for secret in SecretCollectionDefs.list():
-            if secret.id == "a":
-                cert = secret
-            elif secret.id == "b":
-                chain = secret
-
-        installer.update_secret_refs(cert, chain, None, None)
-
-        updated = set()
-        for secret_id in installer.secret_spec.services.get("qwerty"):
-            updated.add(secret_id)
-
-        # The original Secret IDs are "c" and "d". Assert that Secrets
-        # were *not* updated.
-        assert updated == set(["c", "d"])
-
-    @patch.object(SecretCollection, "get", SecretCollectionDefs.get)
-    def test_renew_secret_reference(self, installer):
-        # SecretReference for Secret with ID: "c" in
-        # SecretCollectionDefs.list()
-        old_ref = SecretReference(
-            "c",
-            "2.example.com_cert_v0",
-            "2.example.com_cert",
-            "0",
-            "0",
-            "292"
-        )
-
-        # Use all test Secrets as candidates.
-        candidates = SecretCollectionDefs.list()
-
-        res = installer.renew_secret_reference(old_ref, candidates)
-        assert res.get("SecretName") == "2.example.com_cert_v1"
-        assert res.get("SecretID") == "e"
-        assert res.get("File").get("Name") == old_ref.get("File").get("Name")
-        assert res.get("File").get("UID") == old_ref.get("File").get("UID")
-        assert res.get("File").get("GID") == old_ref.get("File").get("GID")
-        assert res.get("File").get("Mode") == old_ref.get("File").get("Mode")
-
-        res = installer.renew_secret_reference(old_ref, [])
-        assert res == old_ref
-
     @pytest.mark.skip(reason="Nothing to test.")
     def test_enhance(self):
         pass
@@ -607,7 +339,7 @@ class TestSwarmInstaller():
 
             # Assert that the config file was added to a checkpoint.
             mock_add_to_checkpoint.assert_called_once_with(
-                installer.conffile,
+                installer.conf_file,
                 mock.ANY,
                 False
             )
@@ -616,31 +348,19 @@ class TestSwarmInstaller():
             mock_update_services.assert_called_once()
             mock_rm_secrets.assert_called_once_with(keep)
 
+    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
     @patch.object(ServiceCollection, "get", ServiceCollectionDefs.get)
     def test_update_services(self, installer, docker_client):
-        # Construct a SecretSpec from the existing test Service.
         spec = SecretSpec(docker_client)
-        for service in ServiceCollectionDefs.list():
-            refs = service.attrs \
-                          .get("Spec") \
-                          .get("TaskTemplate") \
-                          .get("ContainerSpec") \
-                          .get("Secrets")
-
-            for ref in refs:
-                spec.add_ref(service.id, ref)
-
-        installer.secret_spec = spec
 
         with patch.object(Service, "update") as mock_update:
-            installer.update_services()
+            installer.update_services(spec)
 
             calls = []
             for service_id in spec.services:
                 calls.append(call(secrets=spec.get_refs(service_id)))
 
             mock_update.assert_has_calls(calls)
-
 
     @pytest.mark.skip(reason="Nothing to test.")
     def test_config_test(self):

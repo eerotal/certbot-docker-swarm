@@ -17,8 +17,8 @@ from docker.errors import APIError
 from docker.types.services import SecretReference
 from docker.models.secrets import Secret
 
-from .utils import SwarmInstallerUtils
-from .SecretSpec import SecretSpec
+from certbot_docker_swarm._internal.utils import SwarmInstallerUtils
+from certbot_docker_swarm._internal.models.secretspec import SecretSpec
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class SwarmInstaller(Installer):
 
 
         self.config = config
-        self.conffile = os.path.join(config.config_dir, "docker-swarm.json")
+        self.conf_file = os.path.join(config.config_dir, "docker-swarm.json")
 
         info = self.docker_client.info()
         node_id = info.get("Swarm").get("NodeID")
@@ -143,7 +143,14 @@ class SwarmInstaller(Installer):
         if not cert or not key or not chain or not fc:
             logger.info("Some secrets already deployed. They were skipped.")
 
-        self.update_secret_refs(cert, key, chain, fc)
+        if cert is not None:
+            self.secret_spec.update_refs(cert)
+        if key is not None:
+            self.secret_spec.update_refs(key)
+        if chain is not None:
+            self.secret_spec.update_refs(chain)
+        if fc is not None:
+            self.secret_spec.update_refs(fc)
 
     def enhance(self, domain, enhancement, options=None):
         # type: (str, str, dict) -> None
@@ -161,7 +168,7 @@ class SwarmInstaller(Installer):
         :param bool temporary: Whether the checkpoint is temporary.
         """
 
-        self.add_to_checkpoint(self.conffile, "", temporary)
+        self.add_to_checkpoint(self.conf_file, "", temporary)
 
         if title and not temporary:
             self.finalize_checkpoint(title)
@@ -176,8 +183,8 @@ class SwarmInstaller(Installer):
         """
 
         super(SwarmInstaller, self).rollback_checkpoints(rollback)
-        self.secret_spec.read(self.conffile)
-        self.update_services()
+        self.secret_spec.read(self.conf_file)
+        self.update_services(self.secret_spec)
 
     def config_test(self):
         # type: () -> None
@@ -187,13 +194,16 @@ class SwarmInstaller(Installer):
         # type: () -> None
         pass
 
-    def update_services(self):
-        # type: () -> None
-        """Update Swarm Services based on the current SecretSpec."""
+    def update_services(self, secret_spec):
+        # type: (SecretSpec) -> None
+        """Update Swarm Services based on the current SecretSpec.
 
-        for service_id in self.secret_spec.services:
+        :param SecretSpec spec: The SecretSpec to use for Services.
+        """
+
+        for service_id in secret_spec.services:
             service = self.docker_client.services.get(service_id)
-            service.update(secrets=self.secret_spec.get_refs(service_id))
+            service.update(secrets=secret_spec.get_refs(service_id))
 
     def is_secret_deployed(self, domain, name, fingerprint):
         # type: (str, str, str) -> bool
@@ -341,104 +351,3 @@ class SwarmInstaller(Installer):
                     )
 
         logger.info("Removed {} secrets in total.".format(remove_cnt))
-
-    def update_secret_refs(self, cert, key, chain, fchain):
-        # type: (Secret, Secret, Secret, Secret) -> None
-        """Create updated SecretReferences for all Swarm services.
-
-        This method doesn't update the Swarm services. The updated
-        references are only created and stored in the SecretSpec
-        self.secret_spec and in the SwarmInstaller configuration file.
-        Service updates are finalized by SwarmInstaller.save().
-
-        :param Secret cert: Renewed certificate Secret.
-        :param Secret key: Renewed private key Secret.
-        :param Secret chain: Renewed certificate chain Secret.
-        :param Secret fchain: Renewed fullchain Secret.
-        """
-
-        candidates = list(filter(
-            lambda x: x is not None,
-            [cert, key, chain, fchain]
-        ))
-
-        if len(candidates) == 0:
-            logger.info("No secrets renewed. Skipping service update.")
-            return
-
-        logger.info("Updating Docker Swarm Services.")
-        logger.debug(
-            "Secret renew candidates: {}"
-            .format(", ".join([x.name for x in candidates]))
-        )
-
-        for service in self.docker_client.services.list():
-            logger.info(
-                "Working in service {} (id: {})"
-                .format(service.name, service.id)
-            )
-
-            spec = service.attrs.get("Spec") \
-                                .get("TaskTemplate") \
-                                .get("ContainerSpec") \
-                                .get("Secrets")
-
-            # Skip Services with no Secrets.
-            if spec is None:
-                logger.debug("--> No secrets in service.")
-                continue
-
-            for ref in spec:
-                # Create old SecretReference from Service spec.
-                old = SecretReference(
-                    ref.get("SecretID"),
-                    ref.get("SecretName"),
-                    ref.get("File").get("Name"),
-                    ref.get("File").get("UID"),
-                    ref.get("File").get("GID"),
-                    ref.get("File").get("Mode")
-                )
-
-                # Attempt to renew SecretReference with Secret candidates.
-                new = self.renew_secret_reference(old, candidates)
-                self.secret_spec.add_ref(service.id, new)
-
-        self.secret_spec.write(self.conffile)
-
-    def renew_secret_reference(self, old_ref, candidates):
-        # type: (SecretReference, List[Secret]) -> None
-        """Attempt to renew a SecretReference with a list of new Secrets.
-
-        :param SecretReference old_ref: The old SecretReference.
-        :param List[Secret] candidates: New Secrets.
-
-        :return: A new SecretReference or old_ref if renewal was not possible.
-        :rtype: SecretReference.
-        """
-
-        for new in candidates:
-            old = self.docker_client.secrets.get(old_ref.get("SecretID"))
-            logger.debug(
-                "--> Checking whether {} renews {}."
-                .format(new.name, old.name)
-            )
-
-            if SwarmInstallerUtils.secret_renews(old, new):
-                logger.info(
-                    "--> Update {}: {} -> {}"
-                    .format(
-                        old_ref.get("File").get("Name"),
-                        old_ref.get("SecretName"),
-                        new.name
-                    )
-                )
-                return SecretReference(
-                    new.id,
-                    new.name,
-                    old_ref.get("File").get("Name"),
-                    old_ref.get("File").get("UID"),
-                    old_ref.get("File").get("GID"),
-                    old_ref.get("File").get("Mode")
-                )
-
-        return old_ref
