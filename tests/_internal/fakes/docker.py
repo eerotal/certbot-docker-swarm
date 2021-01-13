@@ -2,6 +2,7 @@ from docker.models.nodes import Node
 from docker.models.secrets import Secret
 from docker.models.services import Service
 
+
 class NodeCollectionDefs:
     @classmethod
     def list(cls):

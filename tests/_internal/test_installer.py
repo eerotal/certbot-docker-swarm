@@ -282,6 +282,7 @@ class TestSwarmInstaller():
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_rm_secrets(self, installer):
         removed = set([])
+
         def record_removed(self):
             removed.add(self.id)
 
@@ -358,6 +359,9 @@ class TestSwarmInstaller():
                 calls.append(call(secrets=spec.get_refs(service_id)))
 
             mock_update.assert_has_calls(calls)
+
+    def test_rollback_checkpoints(self, installer):
+        pass
 
     @pytest.mark.skip(reason="Nothing to test.")
     def test_config_test(self):

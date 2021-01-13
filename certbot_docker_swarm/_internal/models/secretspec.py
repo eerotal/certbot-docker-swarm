@@ -7,6 +7,7 @@ from certbot_docker_swarm._internal.util.secretutils import SecretUtils
 
 logger = logging.getLogger(__name__)
 
+
 class SecretSpec():
     def __init__(self, docker_client, spec=None):
         # type: (DockerClient) -> None

@@ -41,7 +41,6 @@ class SwarmInstaller(Installer):
 
         super(SwarmInstaller, self).__init__(config, name)
 
-
         self.config = config
         self.conf_file = os.path.join(config.config_dir, "docker-swarm.json")
 

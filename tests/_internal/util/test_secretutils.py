@@ -10,6 +10,7 @@ from certbot_docker_swarm._internal.util.secretutils import SecretUtils
 
 from tests.config.defs import ASSET_PATH
 
+
 class TestSecretUtils:
     @pytest.fixture
     def secrets(self):

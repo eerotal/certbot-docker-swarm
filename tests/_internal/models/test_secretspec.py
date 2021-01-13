@@ -12,6 +12,7 @@ from certbot_docker_swarm._internal.models.secretspec import SecretSpec
 
 from tests._internal.fakes.docker import *
 
+
 class TestSecretSpec:
     @pytest.fixture
     def docker_client(self):
