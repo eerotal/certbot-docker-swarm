@@ -64,6 +64,7 @@ class TestSwarmInstaller():
     @pytest.fixture
     @patch.object(NodeCollection, "get", NodeCollectionDefs.get)
     @patch.object(DockerClient, "info", DockerClientDefs.info)
+    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
     def installer(self, config):
         """Returns an initialized partially mocked SwarmInstaller."""
         return SwarmInstaller(
