@@ -1,5 +1,6 @@
 """Docker Swarm installer"""
 
+import os
 import time
 import logging
 
@@ -7,8 +8,9 @@ import zope.interface
 from acme.magic_typing import List, Optional
 
 from certbot.interfaces import IInstaller, IPluginFactory
-from certbot.plugins.common import Plugin
+from certbot.plugins.common import Installer
 from certbot.errors import PluginError
+from certbot.compat.misc import get_default_folder
 
 import docker
 from docker.errors import APIError
@@ -16,28 +18,32 @@ from docker.types.services import SecretReference
 from docker.models.secrets import Secret
 
 from .utils import SwarmInstallerUtils
+from .SecretSpec import SecretSpec
 
 logger = logging.getLogger(__name__)
 
 
 @zope.interface.implementer(IInstaller)
 @zope.interface.provider(IPluginFactory)
-class SwarmInstaller(Plugin):
+class SwarmInstaller(Installer):
     """Docker Swarm installer."""
 
     description = "Docker Swarm Installer"
 
-    def __init__(self, *args, **kwargs):
-        if "docker_client" in kwargs:
+    def __init__(self, config, name, docker_client=None):
+        if docker_client is not None:
             # Use DockerClient supplied by caller if it exists.
             # This is mainly used for testing.
-            self.docker_client = kwargs["docker_client"]
-            del kwargs["docker_client"]
+            self.docker_client = docker_client
         else:
             # Normally create DockerClient from env.
             self.docker_client = docker.from_env()
 
-        self.old_secret_refs = {}
+        super(SwarmInstaller, self).__init__(config, name)
+
+
+        self.config = config
+        self.conffile = os.path.join(config.config_dir, "docker-swarm.json")
 
         info = self.docker_client.info()
         node_id = info.get("Swarm").get("NodeID")
@@ -61,7 +67,8 @@ class SwarmInstaller(Plugin):
                                 .get("Orchestration") \
                                 .get("TaskHistoryRetentionLimit")
 
-        super(SwarmInstaller, self).__init__(*args, **kwargs)
+        # Create a new empty SecretSpec.
+        self.secret_spec = SecretSpec(self.docker_client)
 
     def prepare(self):
         # type: () -> None
@@ -134,18 +141,9 @@ class SwarmInstaller(Plugin):
             fc = self.secret_from_file(domain, "fullchain", fullchain_path, fp)
 
         if not cert or not key or not chain or not fc:
-            logger.info("Some secrets are already deployed. Skipping them.")
+            logger.info("Some secrets already deployed. They were skipped.")
 
-        # Update services.
-        self.update_services(cert, key, chain, fc)
-
-        # Remove old secrets.
-        n = self.rm_secrets(domain, "cert", self.keep_secrets)
-        n += self.rm_secrets(domain, "key", self.keep_secrets)
-        n += self.rm_secrets(domain, "chain", self.keep_secrets)
-        n += self.rm_secrets(domain, "fullchain", self.keep_secrets)
-
-        logger.info("Removed {} old secrets.".format(n))
+        self.update_secret_refs(cert, key, chain, fc)
 
     def enhance(self, domain, enhancement, options=None):
         # type: (str, str, dict) -> None
@@ -157,18 +155,29 @@ class SwarmInstaller(Plugin):
 
     def save(self, title=None, temporary=False):
         # type: (str, bool) -> None
-        pass
+        """Save changes to Secret configuration.
 
-    def rollback_checkpoints(self, rollback=1):
+        :param str title: Checkpoint title.
+        :param bool temporary: Whether the checkpoint is temporary.
+        """
+
+        self.add_to_checkpoint(self.conffile, "", temporary)
+
+        if title and not temporary:
+            self.finalize_checkpoint(title)
+            self.update_services()
+            self.rm_secrets(self.keep_secrets)
+
+    def rollback_checkpoints(rollback=1):
         # type: (int) -> None
-        raise PluginError("Docker Swarm installer doesn't support rollbacks.")
+        """Revert 'rollback' configuration checkpoints.
 
-    def recovery_routine(self):
-        # type: () -> None
+        :param int rollback: The number of checkpoints to rollback.
+        """
 
-        # A recovery routine is not needed because Services are all updated
-        # at once and if the program crashes, no changes are saved anyway.
-        pass
+        super(SwarmInstaller, self).rollback_checkpoints(rollback)
+        self.secret_spec.read(self.conffile)
+        self.update_services()
 
     def config_test(self):
         # type: () -> None
@@ -177,6 +186,14 @@ class SwarmInstaller(Plugin):
     def restart(self):
         # type: () -> None
         pass
+
+    def update_services(self):
+        # type: () -> None
+        """Update Swarm Services based on the current SecretSpec."""
+
+        for service_id in self.secret_spec.services:
+            service = self.docker_client.services.get(service_id)
+            service.update(secrets=self.secret_spec.get_refs(service_id))
 
     def is_secret_deployed(self, domain, name, fingerprint):
         # type: (str, str, str) -> bool
@@ -287,16 +304,11 @@ class SwarmInstaller(Plugin):
 
         return s
 
-    def rm_secrets(self, domain, name, keep):
-        # type: (str, str, int) -> int
-        """Remove oldest secrets of a specific type for a specific domain.
+    def rm_secrets(self, keep):
+        # type: (str, str, int) -> None
+        """Remove oldest secrets of all managed domains.
 
-        :param str domain: The domain whose secrets to remove.
-        :param str name: The secret name to remove, eg. cert, key, ...
         :param keep int: How many secrets to keep.
-
-        :return: The number of secrets removed.
-        :rtype: int
 
         :raises: PluginError if keep < 0.
         """
@@ -304,29 +316,40 @@ class SwarmInstaller(Plugin):
         if keep < 0:
             raise PluginError("Number of Secrets to keep must be positive.")
 
-        remove = self.get_secrets(domain, name, True)[keep:]
-        n = len(remove)
+        remove_cnt = 0
+        domains = self.get_all_names()
 
-        for secret in remove:
-            try:
-                secret.remove()
-            except APIError as e:
-                logger.error(
-                    "Failed to remove secret {} (id: {}): {}"
-                    .format(secret.name, secret.id, str(e))
-                )
-                n -= 1
+        for domain in domains:
+            logger.info("Removing old secrets for domain {}.".format(domain))
+            for name in ["cert", "key", "chain", "fullchain"]:
+                remove = self.get_secrets(domain, name, True)[keep:]
+                remove_cnt += len(remove)
 
-            logger.info(
-                "Removed secret {} (id: {})"
-                .format(secret.name, secret.id)
-            )
+                for secret in remove:
+                    try:
+                        secret.remove()
+                    except APIError as e:
+                        logger.error(
+                            "Failed to remove secret {} (id: {}): {}"
+                            .format(secret.name, secret.id, str(e))
+                        )
+                        remove_cnt -= 1
 
-        return n
+                    logger.info(
+                        "Removed secret {} (id: {})"
+                        .format(secret.name, secret.id)
+                    )
 
-    def update_services(self, cert, key, chain, fchain):
+        logger.info("Removed {} secrets in total.".format(remove_cnt))
+
+    def update_secret_refs(self, cert, key, chain, fchain):
         # type: (Secret, Secret, Secret, Secret) -> None
-        """Update Docker Swarm Services to use renewed secrets.
+        """Create updated SecretReferences for all Swarm services.
+
+        This method doesn't update the Swarm services. The updated
+        references are only created and stored in the SecretSpec
+        self.secret_spec and in the SwarmInstaller configuration file.
+        Service updates are finalized by SwarmInstaller.save().
 
         :param Secret cert: Renewed certificate Secret.
         :param Secret key: Renewed private key Secret.
@@ -355,10 +378,6 @@ class SwarmInstaller(Plugin):
                 .format(service.name, service.id)
             )
 
-            dirty = False
-            new_secret_refs = []
-            old_secret_refs = []
-
             spec = service.attrs.get("Spec") \
                                 .get("TaskTemplate") \
                                 .get("ContainerSpec") \
@@ -382,16 +401,9 @@ class SwarmInstaller(Plugin):
 
                 # Attempt to renew SecretReference with Secret candidates.
                 new = self.renew_secret_reference(old, candidates)
+                self.secret_spec.add_ref(service.id, new)
 
-                old_secret_refs.append(old)
-                new_secret_refs.append(new)
-
-                dirty = (new != old or dirty)
-
-            if dirty:
-                logger.info("--> Committing changes.")
-                self.old_secret_refs[service.id] = old_secret_refs
-                service.update(secrets=new_secret_refs)
+        self.secret_spec.write(self.conffile)
 
     def renew_secret_reference(self, old_ref, candidates):
         # type: (SecretReference, List[Secret]) -> None
