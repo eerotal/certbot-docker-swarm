@@ -447,6 +447,7 @@ class TestSwarmInstaller():
     @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(Installer, "rollback_checkpoints", lambda x, y: None)
     @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
+    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
     def test_rollback_checkpoints(self, installer, docker_client):
         # This should also depend on TestSecretSpec tests but I
         # can't get such dependencies to work.
@@ -460,6 +461,7 @@ class TestSwarmInstaller():
                 mock_up.assert_called_once()
 
     @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
+    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
     def test_rollback_checkpoints_no_previous(self, installer, docker_client):
         # This should also depend on TestSecretSpec tests but I
         # can't get such dependencies to work.
