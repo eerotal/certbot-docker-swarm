@@ -71,7 +71,17 @@ class SwarmInstaller(Installer):
 
     def prepare(self):
         # type: () -> None
-        pass
+        """Prepare the SwarmInstaller plugin."""
+
+        if not os.path.isfile(self.conf_file):
+            # Create the initial configuration checkpoint.
+            self.secret_spec.write(self.conf_file)
+            self.add_to_checkpoint(
+                set([self.conf_file]),
+                "Add Docker Swarm Secret config: {}".format(self.conf_file),
+                False
+            )
+            self.finalize_checkpoint("Initial Docker Swarm configuration.")
 
     def more_info(self):
         # type: () -> str
@@ -167,12 +177,17 @@ class SwarmInstaller(Installer):
         :param bool temporary: Whether the checkpoint is temporary.
         """
 
-        self.add_to_checkpoint(self.conf_file, "", temporary)
+        self.secret_spec.write(self.conf_file)
+        self.add_to_checkpoint(
+            set([self.conf_file]),
+            "Add Docker Swarm Secret config: {}".format(self.conf_file),
+            temporary
+        )
 
         if title and not temporary:
-            self.finalize_checkpoint(title)
-            self.update_services()
+            self.update_services(self.secret_spec)
             self.rm_secrets(self.keep_secrets)
+            self.finalize_checkpoint(title)
 
     def rollback_checkpoints(self, rollback=1):
         # type: (int) -> None
