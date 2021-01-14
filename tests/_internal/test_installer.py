@@ -364,8 +364,27 @@ class TestSwarmInstaller():
 
             mock_update.assert_has_calls(calls)
 
-    def test_rollback_checkpoints(self, installer):
-        pass
+    @patch.object(Installer, "rollback_checkpoints", lambda x, y: None)
+    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
+    def test_rollback_checkpoints(self, installer, docker_client):
+        s = SecretSpec(docker_client, spec=None)
+        s.write(installer.conf_file)
+
+        with patch('os.listdir') as mock_listdir:
+            mock_listdir.return_value = ["dummy"]
+            with patch.object(SwarmInstaller, "update_services") as mock_update:
+                installer.rollback_checkpoints()
+                mock_update.assert_called_once()
+
+    def test_rollback_checkpoints_no_checkpoints(self, installer, docker_client):
+        s = SecretSpec(docker_client, spec=None)
+        s.write(installer.conf_file)
+
+        with patch('os.listdir') as mock_listdir:
+            mock_listdir.return_value = []
+            with patch.object(SwarmInstaller, "update_services") as mock_update:
+                installer.rollback_checkpoints(rollback=1)
+                mock_update.assert_not_called()
 
     @pytest.mark.skip(reason="Nothing to test.")
     def test_config_test(self):
