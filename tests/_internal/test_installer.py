@@ -73,6 +73,12 @@ class TestSwarmInstaller():
             docker_client=DockerClient()
         )
 
+    @pytest.mark.dependency()
+    def test_init(self, installer):
+        # Let's just pass here because any possible errors will
+        # be in the TestSwarmInstaller.installer() fixture.
+        pass
+
     @patch.object(NodeCollection, "get", NodeCollectionDefs.get_not_manager)
     @patch.object(DockerClient, "info", DockerClientDefs.info)
     def test_init_not_swarm_raises(self, docker_client, config):
@@ -85,6 +91,7 @@ class TestSwarmInstaller():
         with pytest.raises(PluginError):
             SwarmInstaller(config, "docker-swarm", docker_client=docker_client)
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_keep_secrets_limit(self, installer):
         tmp = installer.keep_secrets
         assert tmp == DockerClientDefs.info() \
@@ -94,6 +101,7 @@ class TestSwarmInstaller():
                                       .get("Orchestration") \
                                       .get("TaskHistoryRetentionLimit")
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_prepare(self, installer):
         with patch('os.listdir') as mock_listdir:
             mock_listdir.return_value = []
@@ -112,6 +120,7 @@ class TestSwarmInstaller():
                 mock_add_to_checkpoint.assert_called()
                 mock_finalize_checkpoint.assert_called_once()
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_prepare_on_rollback(self, installer):
         # The initial config checkpoint should not be created
         # if the user ran "certbot rollback".
@@ -131,6 +140,7 @@ class TestSwarmInstaller():
                 installer.prepare()
                 mock_finalize_checkpoint.assert_not_called()
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_prepare_backups_exist(self, installer):
         with patch('os.listdir') as mock_listdir:
             # The initial config checkpoint should not be created if
@@ -148,9 +158,11 @@ class TestSwarmInstaller():
                 installer.prepare()
                 mock_finalize_checkpoint.assert_not_called()
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_more_info(self, installer):
         assert type(installer.more_info()) is str
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_is_secret_deployed(self, installer):
         assert installer.is_secret_deployed(
@@ -171,6 +183,7 @@ class TestSwarmInstaller():
             "AA:BB"
         ) is True
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_secret_from_file(self, installer):
         # Define the Secret properties here for later use.
         secret_id = "abcdefg"
@@ -233,11 +246,13 @@ class TestSwarmInstaller():
                 assert ret.id == secret_id
                 assert ret.attrs == secret.attrs
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_get_all_names(self, installer):
         tmp = installer.get_all_names()
         assert tmp == set(["1.example.com", "2.example.com"])
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_deploy_cert(self, installer):
         # Certificate path.
         cp = os.path.join(ASSET_PATH, "cert.pem")
@@ -273,6 +288,7 @@ class TestSwarmInstaller():
                 # Assert that the SecretSpec was updated.
                 mock_update_refs.assert_called()
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_deploy_cert_already_deployed(self, installer):
         # Certificate path.
         cp = os.path.join(ASSET_PATH, "cert.pem")
@@ -296,6 +312,7 @@ class TestSwarmInstaller():
                 # Assert that the SecretSpec was not updated.
                 mock_update_refs.assert_not_called()
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_get_secrets(self, installer):
         t = installer.get_secrets("2.example.com", "cert", reverse=False)
@@ -313,6 +330,7 @@ class TestSwarmInstaller():
         t = installer.get_secrets("3.example.com", "cert", reverse=False)
         assert t == []
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_get_secrets_reverse(self, installer):
         t = installer.get_secrets("2.example.com", "cert", reverse=True)
@@ -330,6 +348,7 @@ class TestSwarmInstaller():
         t = installer.get_secrets("3.example.com", "cert", reverse=True)
         assert t == []
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_rm_secrets(self, installer):
         removed = set([])
@@ -349,6 +368,7 @@ class TestSwarmInstaller():
             installer.rm_secrets(5)
             assert removed == set([])
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(SecretCollection, "list", SecretCollectionDefs.list)
     def test_rm_secrets_negative_keep(self, installer):
         with patch.object(Secret, "remove"):
@@ -359,9 +379,11 @@ class TestSwarmInstaller():
     def test_enhance(self):
         pass
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_supported_enhancements(self, installer):
         assert installer.supported_enhancements() == []
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_save(self, installer):
         # This is the "keep" argument we expect is passed to
         # SwarmInstaller.rm_secrets().
@@ -400,9 +422,12 @@ class TestSwarmInstaller():
                 mock_write.assert_called_once_with(installer.conf_file)
                 mock_rm_secrets.assert_called_once_with(keep)
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
     @patch.object(ServiceCollection, "get", ServiceCollectionDefs.get)
     def test_update_services(self, installer, docker_client):
+        # This should also depend on TestSecretSpec tests but I
+        # can't get such dependencies to work.
         spec = SecretSpec(docker_client)
 
         with patch.object(Service, "update") as mock_update:
@@ -414,9 +439,12 @@ class TestSwarmInstaller():
 
             mock_update.assert_has_calls(calls)
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     @patch.object(Installer, "rollback_checkpoints", lambda x, y: None)
     @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
     def test_rollback_checkpoints(self, installer, docker_client):
+        # This should also depend on TestSecretSpec tests but I
+        # can't get such dependencies to work.
         s = SecretSpec(docker_client, spec=None)
         s.write(installer.conf_file)
 
@@ -426,7 +454,10 @@ class TestSwarmInstaller():
                 installer.rollback_checkpoints()
                 mock_up.assert_called_once()
 
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_rollback_checkpoints_no_previous(self, installer, docker_client):
+        # This should also depend on TestSecretSpec tests but I
+        # can't get such dependencies to work.
         s = SecretSpec(docker_client, spec=None)
         s.write(installer.conf_file)
 
