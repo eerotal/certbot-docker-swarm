@@ -75,16 +75,20 @@ class SwarmInstaller(Installer):
         # type: () -> None
         """Prepare the SwarmInstaller plugin."""
 
-        if not os.listdir(self.config.backup_dir):
-            # No checkpoints exist yet.
+        backups = os.listdir(self.config.backup_dir)
+        if self.config.verb != "rollback" and not backups:
+            # No checkpoints exist yet and not rolling back.
+            # -> Create the initial configuration checkpoint.
+
+            logger.info("Creating initial configuration checkpoint.")
+
             if not os.path.isfile(self.conf_file):
-                # Create the initial configuration checkpoint.
                 self.secret_spec.write(self.conf_file)
 
-                note = ("Initial Docker Swarm Secret config at {}.\n"
-                        .format(datetime.now().isoformat()))
-                self.add_to_checkpoint(set([self.conf_file]), note, False)
-                self.finalize_checkpoint("Initial Docker Swarm configuration.")
+            note = ("Initial Docker Swarm Secret config at {}.\n"
+                    .format(datetime.now().isoformat()))
+            self.add_to_checkpoint(set([self.conf_file]), note, False)
+            self.finalize_checkpoint("Initial Docker Swarm configuration.")
 
     def more_info(self):
         # type: () -> str
