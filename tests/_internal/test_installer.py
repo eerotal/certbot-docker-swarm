@@ -329,23 +329,26 @@ class TestSwarmInstaller():
             rm_secrets=DEFAULT,
             update_services=DEFAULT
         ) as values:
-            mock_add_to_checkpoint = values["add_to_checkpoint"]
-            mock_finalize_checkpoint = values["finalize_checkpoint"]
-            mock_rm_secrets = values["rm_secrets"]
-            mock_update_services = values["update_services"]
+            with patch.object(SecretSpec, "write") as mock_write:
+                mock_add_to_checkpoint = values["add_to_checkpoint"]
+                mock_finalize_checkpoint = values["finalize_checkpoint"]
+                mock_rm_secrets = values["rm_secrets"]
+                mock_update_services = values["update_services"]
 
-            installer.save("Test title", False)
+                installer.save("Test title", False)
 
-            # Assert that the config file was added to a checkpoint.
-            mock_add_to_checkpoint.assert_called_once_with(
-                installer.conf_file,
-                mock.ANY,
-                False
-            )
+                # Assert that the config file was added to a checkpoint.
+                mock_add_to_checkpoint.assert_called_once_with(
+                    set([installer.conf_file]),
+                    mock.ANY,
+                    False
+                )
+                mock_finalize_checkpoint.assert_called_once_with("Test title")
 
-            mock_finalize_checkpoint.assert_called_once_with("Test title")
-            mock_update_services.assert_called_once()
-            mock_rm_secrets.assert_called_once_with(keep)
+                # Assert that Services were updated.
+                mock_update_services.assert_called_once()
+                mock_write.assert_called_once_with(installer.conf_file)
+                mock_rm_secrets.assert_called_once_with(keep)
 
     @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
     @patch.object(ServiceCollection, "get", ServiceCollectionDefs.get)
