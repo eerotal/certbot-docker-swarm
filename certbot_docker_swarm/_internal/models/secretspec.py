@@ -45,18 +45,19 @@ class SecretSpec():
                                    .get("ContainerSpec") \
                                    .get("Secrets", None)
 
-            for secret in secrets:
-                self.set_ref(
-                    service.attrs.get("ID"),
-                    SecretReference(
-                        secret.get("SecretID"),
-                        secret.get("SecretName"),
-                        secret.get("File").get("Name"),
-                        secret.get("File").get("UID"),
-                        secret.get("File").get("GID"),
-                        secret.get("File").get("Mode")
+            if secrets is not None:
+                for secret in secrets:
+                    self.set_ref(
+                        service.attrs.get("ID"),
+                        SecretReference(
+                            secret.get("SecretID"),
+                            secret.get("SecretName"),
+                            secret.get("File").get("Name"),
+                            secret.get("File").get("UID"),
+                            secret.get("File").get("GID"),
+                            secret.get("File").get("Mode")
+                        )
                     )
-                )
 
     def set_ref(self, service_id, ref):
         # type: (str, SecretReference) -> None
