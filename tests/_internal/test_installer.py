@@ -76,6 +76,7 @@ class TestSwarmInstaller():
     @pytest.mark.dependency()
     @patch.object(NodeCollection, "get", NodeCollectionDefs.get)
     @patch.object(DockerClient, "info", DockerClientDefs.info)
+    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list)
     def test_init(self, config):
         SwarmInstaller(
             config,
