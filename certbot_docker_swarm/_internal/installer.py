@@ -4,6 +4,8 @@ import os
 import time
 import logging
 
+from datetime import datetime
+
 import zope.interface
 from acme.magic_typing import List, Optional
 
@@ -73,15 +75,16 @@ class SwarmInstaller(Installer):
         # type: () -> None
         """Prepare the SwarmInstaller plugin."""
 
-        if not os.path.isfile(self.conf_file):
-            # Create the initial configuration checkpoint.
-            self.secret_spec.write(self.conf_file)
-            self.add_to_checkpoint(
-                set([self.conf_file]),
-                "Add Docker Swarm Secret config: {}".format(self.conf_file),
-                False
-            )
-            self.finalize_checkpoint("Initial Docker Swarm configuration.")
+        if not os.listdir(self.config.backup_dir):
+            # No checkpoints exist yet.
+            if not os.path.isfile(self.conf_file):
+                # Create the initial configuration checkpoint.
+                self.secret_spec.write(self.conf_file)
+
+                note = ("Initial Docker Swarm Secret config at {}.\n"
+                        .format(datetime.now().isoformat()))
+                self.add_to_checkpoint(set([self.conf_file]), note, False)
+                self.finalize_checkpoint("Initial Docker Swarm configuration.")
 
     def more_info(self):
         # type: () -> str
@@ -178,11 +181,10 @@ class SwarmInstaller(Installer):
         """
 
         self.secret_spec.write(self.conf_file)
-        self.add_to_checkpoint(
-            set([self.conf_file]),
-            "Add Docker Swarm Secret config: {}".format(self.conf_file),
-            temporary
-        )
+
+        note = ("Update Docker Swarm Secret config at {}.\n"
+                .format(datetime.now().isoformat()))
+        self.add_to_checkpoint(set([self.conf_file]), note, temporary)
 
         if title and not temporary:
             self.update_services(self.secret_spec)
@@ -196,8 +198,11 @@ class SwarmInstaller(Installer):
         :param int rollback: The number of checkpoints to rollback.
         """
 
+        logger.info("Rolling back Secret configuration file.")
         super(SwarmInstaller, self).rollback_checkpoints(rollback)
         self.secret_spec.read(self.conf_file)
+
+        logger.info("Updating Docker Swarm Services.")
         self.update_services(self.secret_spec)
 
     def config_test(self):
