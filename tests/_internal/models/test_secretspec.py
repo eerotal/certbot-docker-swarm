@@ -44,7 +44,11 @@ class TestSecretSpec:
         assert secret_ids == set(["c", "d"])
 
     @pytest.mark.dependency(depends=["TestSecretSpec::test_init_no_spec"])
-    @patch.object(ServiceCollection, "list", ServiceCollectionDefs.list_no_secrets)
+    @patch.object(
+        ServiceCollection,
+        "list",
+        ServiceCollectionDefs.list_no_secrets
+    )
     def test_from_swarm_no_secrets(self, docker_client):
         s = SecretSpec(docker_client, spec=None)
         assert s.services == {}

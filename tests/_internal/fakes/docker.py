@@ -162,9 +162,8 @@ class ServiceCollectionDefs:
     @classmethod
     def list_no_secrets(cls):
         services = cls.list()
-        for service in services:
-            del service.attrs["Spec"]["TaskTemplate"] \
-                             ["ContainerSpec"]["Secrets"]
+        for s in services:
+            del s.attrs["Spec"]["TaskTemplate"]["ContainerSpec"]["Secrets"]
 
         return services
 
