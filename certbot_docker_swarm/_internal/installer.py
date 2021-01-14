@@ -184,16 +184,16 @@ class SwarmInstaller(Installer):
         :param bool temporary: Whether the checkpoint is temporary.
         """
 
-        self.secret_spec.write(self.conf_file)
-
         note = ("Update Docker Swarm Secret config at {}.\n"
                 .format(datetime.now().isoformat()))
         self.add_to_checkpoint(set([self.conf_file]), note, temporary)
 
         if title and not temporary:
-            self.update_services(self.secret_spec)
-            self.rm_secrets(self.keep_secrets)
             self.finalize_checkpoint(title)
+
+        self.update_services(self.secret_spec)
+        self.secret_spec.write(self.conf_file)
+        self.rm_secrets(self.keep_secrets)
 
     def rollback_checkpoints(self, rollback=1):
         # type: (int) -> None
