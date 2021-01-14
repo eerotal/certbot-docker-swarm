@@ -74,10 +74,14 @@ class TestSwarmInstaller():
         )
 
     @pytest.mark.dependency()
-    def test_init(self, installer):
-        # Let's just pass here because any possible errors will
-        # be in the TestSwarmInstaller.installer() fixture.
-        pass
+    @patch.object(NodeCollection, "get", NodeCollectionDefs.get)
+    @patch.object(DockerClient, "info", DockerClientDefs.info)
+    def test_init(self, config):
+        SwarmInstaller(
+            config,
+            "docker-swarm",
+            docker_client=DockerClient()
+        )
 
     @patch.object(NodeCollection, "get", NodeCollectionDefs.get_not_manager)
     @patch.object(DockerClient, "info", DockerClientDefs.info)
