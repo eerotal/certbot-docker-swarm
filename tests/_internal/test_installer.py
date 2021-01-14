@@ -94,9 +94,59 @@ class TestSwarmInstaller():
                                       .get("Orchestration") \
                                       .get("TaskHistoryRetentionLimit")
 
-    @pytest.mark.skip(reason="Nothing to test.")
-    def test_prepare(self):
-        pass
+    def test_prepare(self, installer):
+        with patch('os.listdir') as mock_listdir:
+            mock_listdir.return_value = []
+
+            with patch.multiple(
+                SwarmInstaller,
+                add_to_checkpoint=DEFAULT,
+                finalize_checkpoint=DEFAULT
+            ) as values:
+                mock_add_to_checkpoint = values["add_to_checkpoint"]
+                mock_finalize_checkpoint = values["finalize_checkpoint"]
+
+                installer.prepare()
+
+                assert os.path.isfile(installer.conf_file)
+                mock_add_to_checkpoint.assert_called()
+                mock_finalize_checkpoint.assert_called_once()
+
+    def test_prepare_on_rollback(self, installer):
+        # The initial config checkpoint should not be created
+        # if the user ran "certbot rollback".
+        installer.config.verb = "rollback"
+
+        with patch('os.listdir') as mock_listdir:
+            mock_listdir.return_value = []
+
+            with patch.multiple(
+                SwarmInstaller,
+                add_to_checkpoint=DEFAULT,
+                finalize_checkpoint=DEFAULT
+            ) as values:
+                mock_add_to_checkpoint = values["add_to_checkpoint"]
+                mock_finalize_checkpoint = values["finalize_checkpoint"]
+
+                installer.prepare()
+                mock_finalize_checkpoint.assert_not_called()
+
+    def test_prepare_backups_exist(self, installer):
+        with patch('os.listdir') as mock_listdir:
+            # The initial config checkpoint should not be created if
+            # checkpoints already exist.
+            mock_listdir.return_value = ["dummy"]
+
+            with patch.multiple(
+                SwarmInstaller,
+                add_to_checkpoint=DEFAULT,
+                finalize_checkpoint=DEFAULT
+            ) as values:
+                mock_add_to_checkpoint = values["add_to_checkpoint"]
+                mock_finalize_checkpoint = values["finalize_checkpoint"]
+
+                installer.prepare()
+                mock_finalize_checkpoint.assert_not_called()
 
     def test_more_info(self, installer):
         assert type(installer.more_info()) is str
