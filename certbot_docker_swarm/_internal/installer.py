@@ -174,7 +174,7 @@ class SwarmInstaller(Installer):
             self.update_services()
             self.rm_secrets(self.keep_secrets)
 
-    def rollback_checkpoints(rollback=1):
+    def rollback_checkpoints(self, rollback=1):
         # type: (int) -> None
         """Revert 'rollback' configuration checkpoints.
 
