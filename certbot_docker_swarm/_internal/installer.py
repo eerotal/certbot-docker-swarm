@@ -202,12 +202,16 @@ class SwarmInstaller(Installer):
         :param int rollback: The number of checkpoints to rollback.
         """
 
-        logger.info("Rolling back Secret configuration file.")
-        super(SwarmInstaller, self).rollback_checkpoints(rollback)
-        self.secret_spec.read(self.conf_file)
+        backups = os.listdir(self.config.backup_dir)
+        if backups:
+            logger.info("Rolling back Secret configuration file.")
+            super(SwarmInstaller, self).rollback_checkpoints(rollback)
+            self.secret_spec.read(self.conf_file)
 
-        logger.info("Updating Docker Swarm Services.")
-        self.update_services(self.secret_spec)
+            logger.info("Updating Docker Swarm Services.")
+            self.update_services(self.secret_spec)
+        else:
+            logger.info("No checkpoints found. Won't rollback.")
 
     def config_test(self):
         # type: () -> None
