@@ -5,7 +5,7 @@ on:
 
 jobs:
   lint:
-    name: Lint PEP-8
+    name: Lint code
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +22,7 @@ jobs:
 
       - name: Run pycodestyle
         run: |
-          tox -e lint
+          tox -e pep8,pylint
 
   unit_tests:
     name: Unit tests
