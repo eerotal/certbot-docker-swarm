@@ -26,7 +26,7 @@ setuptools.setup(
     ],
     entry_points={
         "certbot.plugins": [
-            'docker-swarm = certbot_docker_swarm._internal.installer:SwarmInstaller'
+            'docker-swarm = certbot_docker_swarm:SwarmInstaller'
         ]
     }
 )
