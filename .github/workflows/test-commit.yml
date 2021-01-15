@@ -20,7 +20,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install tox
 
-      - name: Run pycodestyle
+      - name: Run linters
         run: |
           tox -e pep8,pylint
 
