@@ -103,7 +103,7 @@ class SecretSpec():
         :param Secret candidate: The new Secret.
         """
 
-        logger.info("Updating Docker Swarm Services.")
+        logger.info("Creating Swarm Secret references.")
         for service_id in self.services:
             service = self.docker_client.services.get(service_id)
             logger.info("Service %s (id: %s)", service.name, service.id)
