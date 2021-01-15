@@ -1,3 +1,5 @@
+"""Class for managins SecretReferences in Swarm stacks."""
+
 import json
 import logging
 
@@ -9,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class SecretSpec():
+    """Class for managins SecretReferences in Swarm stacks."""
+
     def __init__(self, docker_client, spec=None):
         # type: (DockerClient) -> None
         """
@@ -102,7 +106,7 @@ class SecretSpec():
         logger.info("Updating Docker Swarm Services.")
         for service_id in self.services:
             service = self.docker_client.services.get(service_id)
-            logger.info("Service {} (id: {})".format(service.name, service.id))
+            logger.info("Service %s (id: %s)", service.name, service.id)
 
             for old in self.get_refs(service_id):
                 new = self.get_updated_ref(old, candidate)
@@ -124,12 +128,10 @@ class SecretSpec():
         old = self.docker_client.secrets.get(ref.get("SecretID"))
         if SecretUtils.secret_renews(old, candidate):
             logger.info(
-                "--> Update {}: {} -> {}"
-                .format(
-                    ref.get("File").get("Name"),
-                    old.name,
-                    candidate.name
-                )
+                "--> Update %s: %s -> %s",
+                ref.get("File").get("Name"),
+                old.name,
+                candidate.name
             )
             return SecretReference(
                 candidate.id,

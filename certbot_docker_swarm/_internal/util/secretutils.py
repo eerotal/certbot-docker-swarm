@@ -4,6 +4,8 @@ import OpenSSL
 
 
 class SecretUtils:
+    """Utility class for handling SwarmInstaller Secrets."""
+
     SECRET_FORMAT = "{domain}_{name}_v{version}"
 
     L_PREFIX = "certbot"

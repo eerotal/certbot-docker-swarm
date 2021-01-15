@@ -20,7 +20,7 @@ from docker.models.secrets import Secret, SecretCollection
 from docker.models.services import Service, ServiceCollection
 from docker.types.services import SecretReference
 
-from certbot_docker_swarm._internal.installer import SwarmInstaller
+from certbot_docker_swarm._internal.swarminstaller import SwarmInstaller
 from certbot_docker_swarm._internal.util.secretutils import SecretUtils
 from certbot_docker_swarm._internal.models.secretspec import SecretSpec
 

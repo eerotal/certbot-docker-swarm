@@ -7,16 +7,14 @@ import logging
 from datetime import datetime
 
 import zope.interface
-from acme.magic_typing import List, Optional
+from acme.magic_typing import List
 
 from certbot.interfaces import IInstaller, IPluginFactory
 from certbot.plugins.common import Installer
 from certbot.errors import PluginError
-from certbot.compat.misc import get_default_folder
 
 import docker
 from docker.errors import APIError
-from docker.types.services import SecretReference
 from docker.models.secrets import Secret
 
 from certbot_docker_swarm._internal.util.secretutils import SecretUtils
@@ -41,7 +39,7 @@ class SwarmInstaller(Installer):
             # Normally create DockerClient from env.
             self.docker_client = docker.from_env()
 
-        super(SwarmInstaller, self).__init__(config, name)
+        super().__init__(config, name)
 
         self.config = config
         self.conf_file = os.path.join(config.config_dir, "docker-swarm.json")
@@ -90,7 +88,7 @@ class SwarmInstaller(Installer):
             self.add_to_checkpoint(set([self.conf_file]), note, False)
             self.finalize_checkpoint("Initial Docker Swarm configuration.")
 
-    def more_info(self):
+    def more_info(self):  # pylint: disable=no-self-use
         # type: () -> str
         """Return a human-readable help string.
 
@@ -119,9 +117,9 @@ class SwarmInstaller(Installer):
         s = self.docker_client.secrets.list()
         s = SecretUtils.filter_secrets(s, f)
 
-        return set([SecretUtils.get_secret_domain(x) for x in s])
+        return {SecretUtils.get_secret_domain(x) for x in s}
 
-    def deploy_cert(
+    def deploy_cert(  # pylint: disable=too-many-arguments
         self,
         domain,
         cert_path,
@@ -170,10 +168,11 @@ class SwarmInstaller(Installer):
 
     def enhance(self, domain, enhancement, options=None):
         # type: (str, str, dict) -> None
-        pass
+        """Enhance SSL config."""
 
-    def supported_enhancements(self):
+    def supported_enhancements(self):  # pylint: disable=no-self-use
         # type: () -> List[str]
+        """Return a list of supported enhancements."""
         return []
 
     def save(self, title=None, temporary=False):
@@ -205,7 +204,7 @@ class SwarmInstaller(Installer):
         backups = os.listdir(self.config.backup_dir)
         if backups:
             logger.info("Rolling back Secret configuration file.")
-            super(SwarmInstaller, self).rollback_checkpoints(rollback)
+            super().rollback_checkpoints(rollback)
             self.secret_spec.read(self.conf_file)
 
             logger.info("Updating Docker Swarm Services.")
@@ -215,11 +214,11 @@ class SwarmInstaller(Installer):
 
     def config_test(self):
         # type: () -> None
-        pass
+        """Config test."""
 
     def restart(self):
         # type: () -> None
-        pass
+        """Restart server."""
 
     def update_services(self, secret_spec):
         # type: (SecretSpec) -> None
@@ -300,12 +299,9 @@ class SwarmInstaller(Installer):
                 raise PluginError(
                     "Failed to create secret {}: {}"
                     .format(name, str(e))
-                )
+                ) from e
 
-            logger.info(
-                "Created secret {} from file {}."
-                .format(name, filepath)
-            )
+            logger.info("Created secret %s from file %s.", name, filepath)
 
             return self.docker_client.secrets.get(sid)
 
@@ -357,7 +353,7 @@ class SwarmInstaller(Installer):
         domains = self.get_all_names()
 
         for domain in domains:
-            logger.info("Removing old secrets for domain {}.".format(domain))
+            logger.info("Removing old secrets for domain %s.", domain)
             for name in ["cert", "key", "chain", "fullchain"]:
                 remove = self.get_secrets(domain, name, True)[keep:]
                 remove_cnt += len(remove)
@@ -367,14 +363,14 @@ class SwarmInstaller(Installer):
                         secret.remove()
                     except APIError as e:
                         logger.error(
-                            "Failed to remove secret {} (id: {}): {}"
-                            .format(secret.name, secret.id, str(e))
+                            "Failed to remove secret %s (id: %s): %s",
+                            secret.name, secret.id, str(e)
                         )
                         remove_cnt -= 1
 
                     logger.info(
-                        "Removed secret {} (id: {})"
-                        .format(secret.name, secret.id)
+                        "Removed secret %s (id: %s)",
+                        secret.name, secret.id
                     )
 
-        logger.info("Removed {} secrets in total.".format(remove_cnt))
+        logger.info("Removed %s secrets in total.", remove_cnt)
