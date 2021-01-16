@@ -164,6 +164,15 @@ class TestSwarmInstaller():
                 mock_finalize_checkpoint.assert_not_called()
 
     @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
+    def test_prepare_on_renew(self, installer):
+        # certbot-docker-swarm doesn't support 'certbot renew' so
+        # SwarmInstaller.prepare() should raise and Exception if
+        # 'renew' is used.
+        installer.config.verb = "renew"
+        with pytest.raises(PluginError):
+            installer.prepare()
+
+    @pytest.mark.dependency(depends=["TestSwarmInstaller::test_init"])
     def test_more_info(self, installer):
         assert type(installer.more_info()) is str
 
