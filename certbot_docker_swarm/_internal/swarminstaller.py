@@ -73,6 +73,12 @@ class SwarmInstaller(Installer):
         # type: () -> None
         """Prepare the SwarmInstaller plugin."""
 
+        # 'certbot renew' doesn't run the SwarmInstaller.deploy_certs()
+        # method which means the certificates aren't deployed. Let's
+        # instruct users to use 'run' instead.
+        if self.config.verb == "renew":
+            raise PluginError("Please use 'run' instead of 'renew'.")
+
         backups = os.listdir(self.config.backup_dir)
         if self.config.verb != "rollback" and not backups:
             # No checkpoints exist yet and not rolling back.

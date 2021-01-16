@@ -1,6 +1,7 @@
 # Ignore emacs generated files.
 \#*
 .#*
+flycheck_*
 
 # Ignore build system files.
 .mypy_cache
