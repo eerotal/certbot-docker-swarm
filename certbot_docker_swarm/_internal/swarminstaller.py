@@ -77,7 +77,11 @@ class SwarmInstaller(Installer):
         # method which means the certificates aren't deployed. Let's
         # instruct users to use 'run' instead.
         if self.config.verb == "renew":
-            raise PluginError("Please use 'run' instead of 'renew'.")
+            logger.error(
+                "Please use 'run' instead of 'renew'. certbot-docker-swarm"
+                "doesn't support 'certbot renew'."
+            )
+            raise PluginError("Can't use 'renew' with certbot-docker-swarm.")
 
         backups = os.listdir(self.config.backup_dir)
         if self.config.verb != "rollback" and not backups:
