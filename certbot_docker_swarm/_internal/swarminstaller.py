@@ -221,7 +221,11 @@ class SwarmInstaller(Installer):
 
     def restart(self):
         # type: () -> None
-        """Restart server."""
+        """Rotate Docker Swarm Secrets."""
+
+        logger.info("Rotating Docker Swarm Secrets.")
+        self.save("Rotate Docker Swarm Secrets.", False)
+
 
     def update_services(self, secret_spec):
         # type: (SecretSpec) -> None
