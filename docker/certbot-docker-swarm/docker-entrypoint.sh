@@ -70,7 +70,7 @@ printf "[INFO] Running certbot.\n"
 
 # Create a CRON entry for renewing certificates.
 printf "[INFO] Installing cron.d entry.\n"
-printf "${CB_CRON_EXPR} /usr/bin/certbot renew ${CB_RENEW_ARGS} " \
+printf "${CB_CRON_EXPR} /usr/bin/certbot run ${CB_RUN_ARGS} " \
        ">> /proc/1/fd/1 2>&1\n" | crontab -
 
 printf "[INFO] Starting cron.\n"

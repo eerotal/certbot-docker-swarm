@@ -27,7 +27,6 @@ are described in the table below.
 | `CB_STAGING`       | n         | y/n to enable/disable use of staging ACME servers.            |
 | `CB_AUTO_DEPLOY`   | n         | y/n to enable/disable automatic Docker Secret deployment.     |
 | `CB_RUN_ARGS`      |           | Extra CLI arguments to `certbot run`.                         |
-| `CB_RENEW_ARGS`    |           | Extra CLI arguments to `certbot renew`.                       |
 | `CB_CRON_EXPR`     | 0 6 * * * | Cron expression for renewing certificates.                    |
 
 Notes:
@@ -36,7 +35,7 @@ Notes:
    but you must still explicitly define the `CB_AGREE_TOS` variable.
 
 By default *certbot* acquires certificates from Let's Encrypt but you can use other
-ACME servers by passing additional arguments in `CB_RUN_ARGS` and `CB_RENEW_ARGS`.
+ACME servers by passing additional arguments in `CB_RUN_ARGS`.
 
 ### Container paths
 
