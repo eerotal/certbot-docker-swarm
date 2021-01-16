@@ -78,7 +78,7 @@ class SwarmInstaller(Installer):
         # instruct users to use 'run' instead.
         if self.config.verb == "renew":
             logger.error(
-                "Please use 'run' instead of 'renew'. certbot-docker-swarm"
+                "Please use 'run' instead of 'renew'. certbot-docker-swarm "
                 "doesn't support 'certbot renew'."
             )
             raise PluginError("Can't use 'renew' with certbot-docker-swarm.")
