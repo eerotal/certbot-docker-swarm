@@ -47,7 +47,7 @@ CB_RUN_ARGS="\
 # Enable Docker Swarm deployment if the user has enabled it.
 if [ "${CB_AUTO_DEPLOY}"  = "y" ]; then
     printf "[INFO] Enabling automatic deployment.\n"
-    CB_RUN_ARGS="${CB_RUN_ARGS} --installer=certbot-docker-swarm:docker-swarm"
+    CB_RUN_ARGS="${CB_RUN_ARGS} --installer=docker-swarm"
 fi
 
 # Use staging servers if the user has enabled them.
