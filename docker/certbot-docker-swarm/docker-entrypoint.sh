@@ -41,7 +41,7 @@ CB_RUN_ARGS="\
     --agree-tos \
     --preferred-challenges=http \
     --email=${CB_EMAIL} \
-    --domains=${CB_DOMAINS}
+    --domains=${CB_DOMAINS} \
 "
 
 # Enable Docker Swarm deployment if the user has enabled it.
