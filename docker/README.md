@@ -37,6 +37,58 @@ Notes:
 By default *certbot* acquires certificates from Let's Encrypt but you can use other
 ACME servers by passing additional arguments in `CB_RUN_ARGS`.
 
+### ACME challenge verification
+
+By default, the container is configured to use HTTP ACME challenges for host
+verification. These challenges are served via the builtin web server of certbot
+running on port 80. For verification to succeed, you must proxy all the hosts
+that need verification to this host. For example, using an *nginx* reverse proxy
+this can be done with the following snippet.
+
+```
+# Serve the Certbot ACME challenge.
+location /.well-known/acme-challenge/ {
+    resolver 127.0.0.11 valid=30s;
+    set $upstream certbot;
+    proxy_pass http://$upstream:80;
+}
+```
+
+This snippet expects the hostname of the *certbot-docker-swarm* container
+to be `certbot` which is also the name of the service in a Docker Swarm.
+
+A nice way to use this snippet is to put it in a separate file, eg.
+`/etc/nginx/acme_challenge` and to include the file in all `server {}`
+blocks which need to be verified like this:
+
+```
+server {
+    listen 80;
+    server_name www.example.com example.com;
+
+    include /etc/nginx/acme_challenge;
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name www.example.com example.com;
+    include /etc/nginx/tls_params;
+
+    ...
+    ...
+}
+```
+
+Obviously this only works if your infrastructure uses an *nginx* reverse proxy
+in front of all web services. If you're not using a reverse proxy for a service,
+you'll need to figure out another way to do the host verification. However,
+using a reverse proxy for web services is a common pattern and it brings
+some other advantages aswell.
+
 ### Container paths
 
 Some important paths in the container are described in the table below.
